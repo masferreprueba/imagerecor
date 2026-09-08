@@ -8,6 +8,7 @@ Aplicación web completa para recibir un ZIP de fotografías de producto, elimin
 - API en FastAPI con validación segura de ZIP, límites de carga y protección frente a *ZIP Slip* y bombas de compresión.
 - Proveedores intercambiables: Claid, PhotoRoom y Remove.bg.
 - Recorte por canal alfa, escala proporcional, centrado y margen uniforme con Pillow.
+- Acabado de estudio gratuito en JPEG 1500 × 1500, con fondo neutro, sombra natural y ajustes conservadores de luz, color y nitidez.
 - Procesamiento concurrente y cola distribuida Celery + Redis para producción.
 - PostgreSQL opcional para historial y SQLite como modo sencillo de desarrollo.
 - Limpieza automática de archivos temporales.
@@ -80,6 +81,7 @@ uvicorn app.main:app --reload --app-dir backend
 - `POST /api/jobs`: recibe `multipart/form-data` con un campo `file` de tipo ZIP.
 - `GET /api/jobs/{id}`: devuelve estado, progreso, conteos y vistas previas.
 - `GET /api/jobs/{id}/download`: descarga el ZIP terminado.
+- `GET /api/jobs/{id}/download/studio`: descarga el ZIP de fotografías con acabado de estudio.
 - `GET /health`: verificación de disponibilidad.
 
 ## Proveedores

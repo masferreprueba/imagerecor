@@ -6,16 +6,17 @@ from .celery_app import celery_app
 from ..config import get_settings
 from ..database import update_job
 from ..api_credentials import active_provider_keys, record_api_attempt
-from ..image_processing import normalize_product
+from ..image_processing import create_studio_product, normalize_product
 from ..security import safe_extract_images
 from ..services import create_mixed_provider_chain
 
 
-def _process_one(source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path, provider) -> tuple[str, bool, str | None]:
+def _process_one(source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path, studio_outputs: Path, provider) -> tuple[str, bool, str | None]:
     try:
         cutout = cutouts / f"{source.stem}.png"
         png_output = png_outputs / f"{source.stem}.png"
         jpeg_output = jpeg_outputs / f"{source.stem}.jpg"
+        studio_output = studio_outputs / f"{source.stem}_estudio.jpg"
         provider.remove_background(source, cutout)
         settings = get_settings()
         normalize_product(
@@ -25,6 +26,7 @@ def _process_one(source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: P
             settings.object_margin_percent,
             jpeg_destination=jpeg_output,
         )
+        create_studio_product(cutout, studio_output)
         return source.name, True, None
     except Exception as exc:
         return source.name, False, str(exc)
@@ -37,6 +39,7 @@ def process_job(job_id: str) -> None:
     cutouts = root / "cutouts"
     png_outputs = root / "outputs"
     jpeg_outputs = root / "outputs_jpeg"
+    studio_outputs = root / "outputs_studio"
     try:
         update_job(job_id, status="processing", error=None)
         images = safe_extract_images(root / "input.zip", originals, settings)
@@ -44,6 +47,7 @@ def process_job(job_id: str) -> None:
         cutouts.mkdir(parents=True, exist_ok=True)
         png_outputs.mkdir(parents=True, exist_ok=True)
         jpeg_outputs.mkdir(parents=True, exist_ok=True)
+        studio_outputs.mkdir(parents=True, exist_ok=True)
         credentials = active_provider_keys()
         provider = create_mixed_provider_chain(
             credentials,
@@ -54,7 +58,7 @@ def process_job(job_id: str) -> None:
         processed = failed = 0
         failures: list[dict[str, str]] = []
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
-            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, provider) for image in images]
+            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, provider) for image in images]
             for future in as_completed(futures):
                 name, ok, error = future.result()
                 if ok: processed += 1
@@ -68,8 +72,10 @@ def process_job(job_id: str) -> None:
             error_report = json.dumps(failures, ensure_ascii=False, indent=2)
             (png_outputs / "errores.json").write_text(error_report, encoding="utf-8")
             (jpeg_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+            (studio_outputs / "errores.json").write_text(error_report, encoding="utf-8")
         png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
         shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
+        shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)
         update_job(job_id, status="completed", output_path=str(png_archive))
         shutil.rmtree(cutouts, ignore_errors=True)
     except Exception as exc:
