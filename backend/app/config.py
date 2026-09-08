@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/app.db"
     storage_root: Path = Path("./data/jobs")
     temp_ttl_hours: int = 24
+    auth_username: str = ""
+    auth_password: str = ""
+    auth_secret: str = ""
+    auth_token_hours: int = 12
 
     @property
     def allowed_origins(self) -> list[str]:
