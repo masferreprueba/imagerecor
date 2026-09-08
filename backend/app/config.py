@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:4173"
     image_api_provider: str = "claid"
     image_api_key: str = ""
+    image_api_keys: str = ""
     image_api_timeout: int = 90
     image_api_max_retries: int = 3
     output_size: int = 500
@@ -34,6 +35,12 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+
+    @property
+    def provider_api_keys(self) -> list[str]:
+        keys = [self.image_api_key]
+        keys.extend(self.image_api_keys.replace("\n", ",").split(","))
+        return list(dict.fromkeys(key.strip() for key in keys if key.strip()))
 
 
 @lru_cache
