@@ -16,13 +16,18 @@ def normalize_product(
         if not bbox:
             raise ValueError("La imagen procesada no contiene un objeto visible.")
         product = image.crop(bbox)
+        alpha.close()
+        image.close()
         max_side = max(1, round(size * (1 - 2 * margin_percent / 100)))
         ratio = min(max_side / product.width, max_side / product.height)
         dimensions = (max(1, round(product.width * ratio)), max(1, round(product.height * ratio)))
-        product = product.resize(dimensions, Image.Resampling.LANCZOS)
+        resized = product.resize(dimensions, Image.Resampling.LANCZOS)
+        product.close()
+        product = resized
         canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         position = ((size - product.width) // 2, (size - product.height) // 2)
         canvas.alpha_composite(product, position)
+        product.close()
         destination.parent.mkdir(parents=True, exist_ok=True)
         canvas.save(destination, "PNG", optimize=True, compress_level=9)
         if jpeg_destination:
