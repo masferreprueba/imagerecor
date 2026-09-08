@@ -7,7 +7,7 @@ from ..config import get_settings
 from ..database import update_job
 from ..image_processing import normalize_product
 from ..security import safe_extract_images
-from ..services import create_provider
+from ..services import create_provider_chain
 
 
 def _process_one(source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path, provider) -> tuple[str, bool, str | None]:
@@ -43,7 +43,12 @@ def process_job(job_id: str) -> None:
         cutouts.mkdir(parents=True, exist_ok=True)
         png_outputs.mkdir(parents=True, exist_ok=True)
         jpeg_outputs.mkdir(parents=True, exist_ok=True)
-        provider = create_provider(settings.image_api_provider, settings.image_api_key, settings.image_api_timeout, settings.image_api_max_retries)
+        provider = create_provider_chain(
+            settings.image_api_provider,
+            settings.provider_api_keys,
+            settings.image_api_timeout,
+            settings.image_api_max_retries,
+        )
         processed = failed = 0
         failures: list[dict[str, str]] = []
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
@@ -55,7 +60,8 @@ def process_job(job_id: str) -> None:
                     failed += 1; failures.append({"file": name, "error": error or "Error desconocido"})
                 update_job(job_id, processed_images=processed, failed_images=failed)
         if processed == 0:
-            raise RuntimeError("Ninguna imagen pudo procesarse.")
+            detail = failures[0]["error"] if failures else "Error desconocido."
+            raise RuntimeError(f"Ninguna imagen pudo procesarse. {detail}")
         if failures:
             error_report = json.dumps(failures, ensure_ascii=False, indent=2)
             (png_outputs / "errores.json").write_text(error_report, encoding="utf-8")
