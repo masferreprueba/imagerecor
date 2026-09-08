@@ -2,7 +2,13 @@ from pathlib import Path
 from PIL import Image
 
 
-def normalize_product(source: Path, destination: Path, size: int = 500, margin_percent: int = 10) -> None:
+def normalize_product(
+    source: Path,
+    destination: Path,
+    size: int = 500,
+    margin_percent: int = 10,
+    jpeg_destination: Path | None = None,
+) -> None:
     with Image.open(source) as opened:
         image = opened.convert("RGBA")
         alpha = image.getchannel("A")
@@ -19,3 +25,8 @@ def normalize_product(source: Path, destination: Path, size: int = 500, margin_p
         canvas.alpha_composite(product, position)
         destination.parent.mkdir(parents=True, exist_ok=True)
         canvas.save(destination, "PNG", optimize=True, compress_level=9)
+        if jpeg_destination:
+            jpeg_destination.parent.mkdir(parents=True, exist_ok=True)
+            white = Image.new("RGB", (size, size), "white")
+            white.paste(canvas, mask=canvas.getchannel("A"))
+            white.save(jpeg_destination, "JPEG", quality=95, optimize=True, progressive=True)
