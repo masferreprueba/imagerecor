@@ -20,5 +20,7 @@ class JobResponse(BaseModel):
     progress: float
     error: str | None
     download_url: str | None
+    download_png_url: str | None
+    download_jpeg_url: str | None
     previews: list[Preview]
     created_at: datetime
