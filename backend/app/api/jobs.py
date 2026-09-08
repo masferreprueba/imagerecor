@@ -2,16 +2,17 @@ import shutil
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from fastapi import APIRouter, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from ..config import get_settings
+from ..auth import require_auth
 from ..database import JobRecord, SessionLocal
 from ..schemas import JobResponse, Preview
 from ..security import UnsafeArchive, inspect_zip
 from ..workers.tasks import process_job, process_job_task
 
-router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+router = APIRouter(prefix="/api/jobs", tags=["jobs"], dependencies=[Depends(require_auth)])
 settings = get_settings()
 # Render Free has limited memory. Running more than one ZIP job at once can
 # exhaust it when PhotoRoom returns large transparent images.
