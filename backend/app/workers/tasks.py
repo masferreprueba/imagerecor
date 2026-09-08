@@ -10,13 +10,20 @@ from ..security import safe_extract_images
 from ..services import create_provider
 
 
-def _process_one(source: Path, cutouts: Path, outputs: Path, provider) -> tuple[str, bool, str | None]:
+def _process_one(source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path, provider) -> tuple[str, bool, str | None]:
     try:
         cutout = cutouts / f"{source.stem}.png"
-        output = outputs / f"{source.stem}.png"
+        png_output = png_outputs / f"{source.stem}.png"
+        jpeg_output = jpeg_outputs / f"{source.stem}.jpg"
         provider.remove_background(source, cutout)
         settings = get_settings()
-        normalize_product(cutout, output, settings.output_size, settings.object_margin_percent)
+        normalize_product(
+            cutout,
+            png_output,
+            settings.output_size,
+            settings.object_margin_percent,
+            jpeg_destination=jpeg_output,
+        )
         return source.name, True, None
     except Exception as exc:
         return source.name, False, str(exc)
@@ -25,17 +32,22 @@ def _process_one(source: Path, cutouts: Path, outputs: Path, provider) -> tuple[
 def process_job(job_id: str) -> None:
     settings = get_settings()
     root = settings.storage_root / job_id
-    originals, cutouts, outputs = root / "originals", root / "cutouts", root / "outputs"
+    originals = root / "originals"
+    cutouts = root / "cutouts"
+    png_outputs = root / "outputs"
+    jpeg_outputs = root / "outputs_jpeg"
     try:
         update_job(job_id, status="processing", error=None)
         images = safe_extract_images(root / "input.zip", originals, settings)
         update_job(job_id, total_images=len(images))
-        cutouts.mkdir(parents=True, exist_ok=True); outputs.mkdir(parents=True, exist_ok=True)
+        cutouts.mkdir(parents=True, exist_ok=True)
+        png_outputs.mkdir(parents=True, exist_ok=True)
+        jpeg_outputs.mkdir(parents=True, exist_ok=True)
         provider = create_provider(settings.image_api_provider, settings.image_api_key, settings.image_api_timeout, settings.image_api_max_retries)
         processed = failed = 0
         failures: list[dict[str, str]] = []
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
-            futures = [pool.submit(_process_one, image, cutouts, outputs, provider) for image in images]
+            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, provider) for image in images]
             for future in as_completed(futures):
                 name, ok, error = future.result()
                 if ok: processed += 1
@@ -45,10 +57,12 @@ def process_job(job_id: str) -> None:
         if processed == 0:
             raise RuntimeError("Ninguna imagen pudo procesarse.")
         if failures:
-            (outputs / "errores.json").write_text(json.dumps(failures, ensure_ascii=False, indent=2), encoding="utf-8")
-        archive_base = root / "imagenes_procesadas"
-        archive_path = Path(shutil.make_archive(str(archive_base), "zip", outputs))
-        update_job(job_id, status="completed", output_path=str(archive_path))
+            error_report = json.dumps(failures, ensure_ascii=False, indent=2)
+            (png_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+            (jpeg_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+        png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
+        shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
+        update_job(job_id, status="completed", output_path=str(png_archive))
         shutil.rmtree(cutouts, ignore_errors=True)
     except Exception as exc:
         update_job(job_id, status="failed", error=str(exc)[:2000])
