@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     max_files_per_zip: int = 2000
     max_uncompressed_mb: int = 1500
     max_compression_ratio: int = 100
-    processing_concurrency: int = 4
+    processing_concurrency: int = 1
     task_queue: str = "inline"
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
