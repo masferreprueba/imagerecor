@@ -2,6 +2,7 @@ import shutil
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
@@ -88,6 +89,23 @@ def get_job(job_id: str):
         record = session.scalar(select(JobRecord).where(JobRecord.id == job_id))
         if not record: raise HTTPException(404, "Proceso no encontrado.")
         return serialize(record)
+
+
+@router.get("/{job_id}/images")
+def list_processed_images(job_id: str):
+    with SessionLocal() as session:
+        record = session.get(JobRecord, job_id)
+        if not record or record.status != "completed":
+            raise HTTPException(404, "Las imágenes procesadas todavía no están disponibles.")
+    output_dir = settings.storage_root / job_id / "outputs"
+    if not output_dir.is_dir():
+        raise HTTPException(410, "Las imágenes de este proceso ya expiraron.")
+    images = [
+        {"name": path.name, "url": f"/api/jobs/{job_id}/files/processed/{quote(path.name)}"}
+        for path in sorted(output_dir.iterdir())
+        if path.is_file() and path.suffix.lower() == ".png"
+    ]
+    return {"images": images}
 
 
 @router.get("/{job_id}/download")
