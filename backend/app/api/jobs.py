@@ -36,6 +36,8 @@ def serialize(record: JobRecord) -> JobResponse:
         total_images=record.total_images, processed_images=record.processed_images,
         failed_images=record.failed_images, progress=progress, error=record.error,
         download_url=f"/api/jobs/{record.id}/download" if record.status == "completed" else None,
+        download_png_url=f"/api/jobs/{record.id}/download/png" if record.status == "completed" else None,
+        download_jpeg_url=f"/api/jobs/{record.id}/download/jpeg" if record.status == "completed" else None,
         previews=previews, created_at=record.created_at,
     )
 
@@ -87,13 +89,25 @@ def get_job(job_id: str):
 
 @router.get("/{job_id}/download")
 def download_job(job_id: str):
+    return download_job_format(job_id, "png")
+
+
+@router.get("/{job_id}/download/{output_format}")
+def download_job_format(job_id: str, output_format: str):
+    if output_format not in {"png", "jpeg"}:
+        raise HTTPException(400, "Formato de descarga no permitido.")
     with SessionLocal() as session:
         record = session.get(JobRecord, job_id)
         if not record or record.status != "completed" or not record.output_path:
             raise HTTPException(404, "El ZIP final todavía no está disponible.")
-        path = Path(record.output_path)
+        if output_format == "png":
+            path = Path(record.output_path)
+            suffix = "png_sin_fondo"
+        else:
+            path = settings.storage_root / job_id / "imagenes_jpeg_fondo_blanco.zip"
+            suffix = "jpeg_fondo_blanco"
         if not path.is_file(): raise HTTPException(410, "El archivo ya expiró.")
-        return FileResponse(path, media_type="application/zip", filename=f"{Path(record.filename).stem}_procesado.zip")
+        return FileResponse(path, media_type="application/zip", filename=f"{Path(record.filename).stem}_{suffix}.zip")
 
 
 @router.get("/{job_id}/files/{kind}/{filename}")
