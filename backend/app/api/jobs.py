@@ -13,7 +13,9 @@ from ..workers.tasks import process_job, process_job_task
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 settings = get_settings()
-executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="job")
+# Render Free has limited memory. Running more than one ZIP job at once can
+# exhaust it when PhotoRoom returns large transparent images.
+executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="job")
 
 
 def serialize(record: JobRecord) -> JobResponse:
