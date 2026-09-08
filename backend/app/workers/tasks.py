@@ -5,6 +5,7 @@ from pathlib import Path
 from .celery_app import celery_app
 from ..config import get_settings
 from ..database import update_job
+from ..api_credentials import active_provider_keys, record_api_attempt
 from ..image_processing import normalize_product
 from ..security import safe_extract_images
 from ..services import create_provider_chain
@@ -43,11 +44,14 @@ def process_job(job_id: str) -> None:
         cutouts.mkdir(parents=True, exist_ok=True)
         png_outputs.mkdir(parents=True, exist_ok=True)
         jpeg_outputs.mkdir(parents=True, exist_ok=True)
+        credentials = active_provider_keys(settings.image_api_provider)
         provider = create_provider_chain(
             settings.image_api_provider,
-            settings.provider_api_keys,
+            [item.api_key for item in credentials],
             settings.image_api_timeout,
             settings.image_api_max_retries,
+            credential_ids=[item.credential_id for item in credentials],
+            on_attempt=lambda credential_id, success, error: record_api_attempt(credential_id, success, error, job_id),
         )
         processed = failed = 0
         failures: list[dict[str, str]] = []

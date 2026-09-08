@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.auth import router as auth_router
 from .api.jobs import router as jobs_router
+from .api.api_keys import router as api_keys_router
+from .api_credentials import sync_environment_api_keys
 from .config import get_settings
 from .database import init_db
 
@@ -28,7 +30,9 @@ def cleanup_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db(); cleanup_expired()
+    init_db()
+    sync_environment_api_keys(settings.image_api_provider, settings.provider_api_keys)
+    cleanup_expired()
     cleaner = threading.Thread(target=cleanup_loop, name="temp-cleaner", daemon=True)
     cleaner.start()
     yield
@@ -36,9 +40,10 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins, allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins, allow_credentials=True, allow_methods=["GET", "POST", "PATCH"], allow_headers=["*"])
 app.include_router(auth_router)
 app.include_router(jobs_router)
+app.include_router(api_keys_router)
 
 
 @app.get("/health")

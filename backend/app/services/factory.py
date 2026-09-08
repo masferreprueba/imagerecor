@@ -14,6 +14,6 @@ def create_provider(name: str, api_key: str, timeout: int, max_retries: int) -> 
     return provider(api_key=api_key, timeout=timeout, max_retries=max_retries)
 
 
-def create_provider_chain(name: str, api_keys: list[str], timeout: int, max_retries: int) -> BackgroundRemovalProvider:
+def create_provider_chain(name: str, api_keys: list[str], timeout: int, max_retries: int, credential_ids: list[int] | None = None, on_attempt=None) -> BackgroundRemovalProvider:
     providers = [create_provider(name, key, timeout, max_retries) for key in api_keys]
-    return FallbackProvider(providers)
+    return FallbackProvider(providers, credential_ids=credential_ids, on_attempt=on_attempt)

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     auth_password: str = ""
     auth_secret: str = ""
     auth_token_hours: int = 12
+    api_key_encryption_secret: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:

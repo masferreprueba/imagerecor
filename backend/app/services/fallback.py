@@ -9,12 +9,23 @@ class FallbackProvider(BackgroundRemovalProvider):
 
     name = "fallback"
 
-    def __init__(self, providers: list[BackgroundRemovalProvider]):
+    def __init__(self, providers: list[BackgroundRemovalProvider], credential_ids: list[int] | None = None, on_attempt=None):
         if not providers:
             raise ValueError("No hay llaves API configuradas para procesar imágenes.")
         self.providers = providers
+        self.credential_ids = credential_ids or list(range(len(providers)))
+        self.on_attempt = on_attempt
         self._active_index = 0
         self._lock = Lock()
+
+    def _record(self, credential_id: int, success: bool, error: str | None) -> None:
+        if not self.on_attempt:
+            return
+        try:
+            self.on_attempt(credential_id, success, error)
+        except Exception:
+            # Usage statistics must never interrupt image processing.
+            pass
 
     def remove_background(self, source: Path, destination: Path) -> None:
         with self._lock:
@@ -25,10 +36,12 @@ class FallbackProvider(BackgroundRemovalProvider):
             index = (start + offset) % len(self.providers)
             try:
                 self.providers[index].remove_background(source, destination)
+                self._record(self.credential_ids[index], True, None)
                 with self._lock:
                     self._active_index = index
                 return
             except Exception as exc:
+                self._record(self.credential_ids[index], False, str(exc))
                 last_error = exc
 
         if last_error:
