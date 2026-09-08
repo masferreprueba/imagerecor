@@ -41,9 +41,9 @@ def process_job(job_id: str) -> None:
     jpeg_outputs = root / "outputs_jpeg"
     studio_outputs = root / "outputs_studio"
     try:
-        update_job(job_id, status="processing", error=None)
+        update_job(job_id, status="extracting", error=None)
         images = safe_extract_images(root / "input.zip", originals, settings)
-        update_job(job_id, total_images=len(images))
+        update_job(job_id, status="processing", total_images=len(images))
         cutouts.mkdir(parents=True, exist_ok=True)
         png_outputs.mkdir(parents=True, exist_ok=True)
         jpeg_outputs.mkdir(parents=True, exist_ok=True)
@@ -75,6 +75,7 @@ def process_job(job_id: str) -> None:
             (png_outputs / "errores.json").write_text(error_report, encoding="utf-8")
             (jpeg_outputs / "errores.json").write_text(error_report, encoding="utf-8")
             (studio_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+        update_job(job_id, status="packaging")
         png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
         shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
         shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)

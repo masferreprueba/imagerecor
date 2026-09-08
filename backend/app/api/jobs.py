@@ -9,6 +9,7 @@ from sqlalchemy import select
 from ..config import get_settings
 from ..auth import require_auth
 from ..database import JobRecord, SessionLocal
+from ..progress import calculate_progress
 from ..schemas import JobResponse, Preview
 from ..security import UnsafeArchive, inspect_zip
 from ..workers.tasks import process_job, process_job_task
@@ -22,8 +23,12 @@ executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="job")
 
 def serialize(record: JobRecord) -> JobResponse:
     total = max(record.total_images, 0)
-    done = record.processed_images + record.failed_images
-    progress = 100.0 if record.status == "completed" else round(done / total * 100, 1) if total else 0.0
+    progress = calculate_progress(
+        record.status,
+        total,
+        record.processed_images,
+        record.failed_images,
+    )
     previews: list[Preview] = []
     root = settings.storage_root / record.id
     originals = root / "originals"
