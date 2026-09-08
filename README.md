@@ -7,6 +7,7 @@ Aplicación web completa para recibir un ZIP de fotografías de producto, elimin
 - Interfaz responsive en Next.js con drag & drop, estados, progreso, vistas previas y descarga.
 - API en FastAPI con validación segura de ZIP, límites de carga y protección frente a *ZIP Slip* y bombas de compresión.
 - Proveedores intercambiables: Claid, PhotoRoom y Remove.bg.
+- Respaldo local gratuito con rembg/Silueta cuando ninguna API está disponible.
 - Recorte por canal alfa, escala proporcional, centrado y margen uniforme con Pillow.
 - Acabado de estudio gratuito en JPEG 1500 × 1500, con fondo neutro, sombra natural y ajustes conservadores de luz, color y nitidez.
 - Procesamiento concurrente y cola distribuida Celery + Redis para producción.
@@ -68,6 +69,8 @@ uvicorn app.main:app --reload --app-dir backend
 | --- | --- |
 | `IMAGE_API_PROVIDER` | `claid`, `photoroom` o `removebg` |
 | `IMAGE_API_KEY` | Llave privada del proveedor |
+| `LOCAL_BACKGROUND_REMOVAL_ENABLED` | Activa el respaldo local gratuito; por defecto `true` |
+| `LOCAL_BACKGROUND_REMOVAL_MODEL` | Modelo local de rembg; por defecto `silueta` |
 | `NEXT_PUBLIC_API_URL` | URL pública de FastAPI |
 | `OUTPUT_SIZE` | Lado del PNG final; por defecto 500 |
 | `OBJECT_MARGIN_PERCENT` | Margen por lado; por defecto 10 |

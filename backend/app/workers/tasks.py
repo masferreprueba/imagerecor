@@ -54,6 +54,8 @@ def process_job(job_id: str) -> None:
             settings.image_api_timeout,
             settings.image_api_max_retries,
             on_attempt=lambda credential_id, success, error: record_api_attempt(credential_id, success, error, job_id),
+            local_enabled=settings.local_background_removal_enabled,
+            local_model=settings.local_background_removal_model,
         )
         processed = failed = 0
         failures: list[dict[str, str]] = []

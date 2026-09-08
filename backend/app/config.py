@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     image_api_keys: str = ""
     image_api_timeout: int = 90
     image_api_max_retries: int = 3
+    local_background_removal_enabled: bool = True
+    local_background_removal_model: str = "silueta"
     output_size: int = 500
     object_margin_percent: int = 10
     max_upload_mb: int = 250
