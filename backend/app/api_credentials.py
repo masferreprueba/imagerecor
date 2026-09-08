@@ -10,12 +10,14 @@ from .config import get_settings
 from .database import ApiCredential, ApiUsageEvent, SessionLocal
 
 
-SUPPORTED_PROVIDERS = {"claid", "photoroom", "removebg"}
+PROVIDER_PRIORITY = ("photoroom", "removebg", "poof", "claid")
+SUPPORTED_PROVIDERS = set(PROVIDER_PRIORITY)
 
 
 @dataclass(frozen=True)
 class ProviderKey:
     credential_id: int
+    provider: str
     api_key: str
 
 
@@ -84,21 +86,22 @@ def sync_environment_api_keys(provider: str, api_keys: list[str]) -> None:
             ))
 
 
-def active_provider_keys(provider: str) -> list[ProviderKey]:
+def active_provider_keys(provider: str | None = None) -> list[ProviderKey]:
     cipher = _cipher()
     with SessionLocal() as session:
-        records = session.scalars(
-            select(ApiCredential)
-            .where(ApiCredential.provider == provider.lower(), ApiCredential.active.is_(True))
-            .order_by(ApiCredential.last_used_at.desc().nullslast(), ApiCredential.id)
-        ).all()
+        query = select(ApiCredential).where(ApiCredential.active.is_(True))
+        if provider:
+            query = query.where(ApiCredential.provider == provider.lower())
+        records = session.scalars(query.order_by(ApiCredential.last_used_at.desc().nullslast(), ApiCredential.id)).all()
+        priority = {name: index for index, name in enumerate(PROVIDER_PRIORITY)}
+        records.sort(key=lambda item: priority.get(item.provider, len(priority)))
         result: list[ProviderKey] = []
         for record in records:
             try:
                 key = cipher.decrypt(record.encrypted_key.encode("ascii")).decode("utf-8")
             except InvalidToken as exc:
                 raise RuntimeError("No fue posible descifrar una llave API registrada.") from exc
-            result.append(ProviderKey(record.id, key))
+            result.append(ProviderKey(record.id, record.provider, key))
         return result
 
 

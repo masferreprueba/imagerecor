@@ -2,9 +2,10 @@ from .base import BackgroundRemovalProvider
 from .claid_service import ClaidProvider
 from .photoroom_service import PhotoroomProvider
 from .removebg_service import RemoveBgProvider
+from .poof_service import PoofProvider
 from .fallback import FallbackProvider
 
-PROVIDERS = {"claid": ClaidProvider, "photoroom": PhotoroomProvider, "removebg": RemoveBgProvider}
+PROVIDERS = {"claid": ClaidProvider, "photoroom": PhotoroomProvider, "removebg": RemoveBgProvider, "poof": PoofProvider}
 
 
 def create_provider(name: str, api_key: str, timeout: int, max_retries: int) -> BackgroundRemovalProvider:
@@ -17,3 +18,12 @@ def create_provider(name: str, api_key: str, timeout: int, max_retries: int) -> 
 def create_provider_chain(name: str, api_keys: list[str], timeout: int, max_retries: int, credential_ids: list[int] | None = None, on_attempt=None) -> BackgroundRemovalProvider:
     providers = [create_provider(name, key, timeout, max_retries) for key in api_keys]
     return FallbackProvider(providers, credential_ids=credential_ids, on_attempt=on_attempt)
+
+
+def create_mixed_provider_chain(credentials, timeout: int, max_retries: int, on_attempt=None) -> BackgroundRemovalProvider:
+    providers = [create_provider(item.provider, item.api_key, timeout, max_retries) for item in credentials]
+    return FallbackProvider(
+        providers,
+        credential_ids=[item.credential_id for item in credentials],
+        on_attempt=on_attempt,
+    )
