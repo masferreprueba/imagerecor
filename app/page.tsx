@@ -14,6 +14,7 @@ type Job = {
   error?: string | null; download_url?: string | null;
   download_png_url?: string | null; download_jpeg_url?: string | null;
   download_studio_url?: string | null;
+  download_template_url?: string | null;
   previews?: Array<{ name: string; original_url: string; processed_url?: string | null; status: string }>;
 };
 
@@ -50,9 +51,12 @@ function formatBytes(bytes: number) {
 
 export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const templateInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollFailuresRef = useRef(0);
   const [file, setFile] = useState<File | null>(null);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [templateName, setTemplateName] = useState("");
   const [state, setState] = useState<JobState>("idle");
   const [dragging, setDragging] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
@@ -66,6 +70,7 @@ export default function Home() {
 
   const acceptFile = (candidate?: File) => {
     if (!candidate) return;
+    if (!templateFile) { toast.error("Selecciona primero una plantilla PNG."); return; }
     if (!candidate.name.toLowerCase().endsWith(".zip")) {
       toast.error("Selecciona un archivo ZIP válido.");
       return;
@@ -75,6 +80,18 @@ export default function Home() {
       return;
     }
     setFile(candidate); setState("ready"); setJob(null);
+  };
+
+  const acceptTemplate = async (candidate?: File) => {
+    if (!candidate) return;
+    if (!candidate.name.toLowerCase().endsWith(".png")) { toast.error("Selecciona una plantilla PNG."); return; }
+    const bitmap = await createImageBitmap(candidate);
+    const validSize = bitmap.width === 500 && bitmap.height === 500;
+    bitmap.close();
+    if (!validSize) { toast.error("La plantilla debe medir exactamente 500 × 500 px."); return; }
+    setTemplateFile(candidate);
+    if (!templateName) setTemplateName(candidate.name.replace(/\.png$/i, "").replace(/[_-]+/g, " "));
+    setFile(null); setState("idle"); setJob(null);
   };
 
   const refreshJob = useCallback(async (jobId: string) => {
@@ -92,7 +109,7 @@ export default function Home() {
   }, [stopPolling]);
 
   const startProcessing = async () => {
-    if (!file) return;
+    if (!file || !templateFile || !templateName.trim()) { toast.error("Selecciona y nombra la plantilla antes de procesar."); return; }
     if (!API_CONFIGURED) {
       const message = "El servidor de procesamiento todavía no está conectado a esta versión publicada.";
       setState("failed");
@@ -106,7 +123,7 @@ export default function Home() {
     }
     pollFailuresRef.current = 0;
     setState("waking");
-    const form = new FormData(); form.append("file", file);
+    const form = new FormData(); form.append("file", file); form.append("template", templateFile); form.append("template_name", templateName.trim());
     try {
       await waitForService();
       setState("uploading");
@@ -136,10 +153,11 @@ export default function Home() {
   };
 
   const reset = () => {
-    stopPolling(); pollFailuresRef.current = 0; setFile(null); setJob(null); setState("idle");
+    stopPolling(); pollFailuresRef.current = 0; setFile(null); setTemplateFile(null); setTemplateName(""); setJob(null); setState("idle");
     if (inputRef.current) inputRef.current.value = "";
+    if (templateInputRef.current) templateInputRef.current.value = "";
   };
-  const busy = ["waking", "uploading", "queued", "processing"].includes(state);
+  const busy = ["waking", "uploading", "queued", "extracting", "processing", "packaging"].includes(state);
   const progress = state === "waking" ? 3 : state === "uploading" ? 8 : job?.progress || 0;
 
   return (
@@ -172,7 +190,17 @@ export default function Home() {
           <div className="overflow-hidden rounded-[28px] border border-black/8 bg-white shadow-[0_24px_70px_rgba(16,35,33,.09)]">
             <div className="flex items-center justify-between border-b border-black/7 px-6 py-4"><div className="flex items-center gap-2 text-sm font-bold"><Archive className="size-4 text-[#ef312d]" /> Nuevo procesamiento</div><span className="text-xs font-semibold text-[#71807d]">ZIP · Máx. 250 MB</span></div>
             <div className="p-5 sm:p-7">
-              {!file ? (
+              <div className="mb-5 rounded-2xl border border-[#d7e0dd] bg-[#f8fbfa] p-5">
+                <p className="font-extrabold">1. Selecciona la plantilla</p>
+                <p className="mt-1 text-sm text-[#657572]">PNG de 500 × 500 px con un área transparente para el producto.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <input value={templateName} onChange={(event) => setTemplateName(event.target.value)} maxLength={120} placeholder="Nombre de la plantilla" className="rounded-lg border border-[#cbd6d2] bg-white px-4 py-3" />
+                  <Button variant="outline" onClick={() => templateInputRef.current?.click()}>{templateFile ? "Cambiar plantilla" : "Seleccionar PNG"}</Button>
+                </div>
+                {templateFile && <p className="mt-3 truncate text-sm font-bold text-[#1f5c48]">✓ {templateFile.name} · 500 × 500 px</p>}
+                <input ref={templateInputRef} type="file" accept="image/png,.png" className="hidden" onChange={(event) => acceptTemplate(event.target.files?.[0]).catch(() => toast.error("No fue posible leer la plantilla."))} />
+              </div>
+              {templateFile && (!file ? (
                 <button
                   className={`group relative grid min-h-[290px] w-full place-items-center overflow-hidden rounded-2xl border-2 border-dashed p-8 text-center transition ${dragging ? "border-[#ef312d] bg-[#fff7f6]" : "border-[#b9c7c3] bg-[#f8fbfa] hover:border-[#ef312d] hover:bg-[#fffafa]"}`}
                   onClick={() => inputRef.current?.click()}
@@ -185,8 +213,8 @@ export default function Home() {
                   <div className="absolute inset-0 opacity-[.035] [background-image:linear-gradient(#102321_1px,transparent_1px),linear-gradient(90deg,#102321_1px,transparent_1px)] [background-size:28px_28px]" />
                   <div className="relative">
                     <div className="mx-auto mb-5 grid size-16 place-items-center rounded-2xl bg-[#102321] text-white shadow-xl transition group-hover:-translate-y-1"><UploadCloud className="size-7" /></div>
-                    <p className="text-xl font-black">Arrastra aquí tu archivo ZIP</p>
-                    <p className="mt-2 text-[15px] text-[#6c7977]">o haz clic para seleccionarlo desde tu equipo</p>
+                    <p className="text-xl font-black">2. Carga las fotografías</p>
+                    <p className="mt-2 text-[15px] text-[#6c7977]">Arrastra o selecciona el archivo ZIP</p>
                     <span className="mt-6 inline-flex rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-bold shadow-sm">Seleccionar archivo</span>
                   </div>
                 </button>
@@ -197,17 +225,17 @@ export default function Home() {
                     <div className="min-w-0 flex-1"><p className="truncate font-extrabold">{file.name}</p><p className="mt-1 text-sm text-[#71807d]">{formatBytes(file.size)} · Listo para procesar</p></div>
                     {!busy && state !== "completed" && <Button variant="ghost" size="icon" onClick={reset} aria-label="Quitar archivo"><X /></Button>}
                   </div>
-                  {state === "ready" && <><div className="mt-5 flex items-start gap-3 rounded-xl border border-[#bdd7cc] bg-[#f1f8f5] p-4"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#1f5c48] text-white"><Sparkles className="size-4" /></div><div><p className="text-sm font-extrabold">Mejora de estudio incluida</p><p className="mt-1 text-sm leading-5 text-[#60716d]">Generaremos también un JPEG de 1500 × 1500 con iluminación, nitidez, fondo profesional y sombra natural, sin consumir otra API.</p></div></div><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="outline" size="lg" onClick={reset}>Cancelar</Button><Button size="lg" onClick={startProcessing} className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]">Procesar imágenes <ArrowRight /></Button></div></>}
+                  {state === "ready" && <><div className="mt-5 flex items-start gap-3 rounded-xl border border-[#bdd7cc] bg-[#f1f8f5] p-4"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#1f5c48] text-white"><Sparkles className="size-4" /></div><div><p className="text-sm font-extrabold">Plantilla y mejora en un solo proceso</p><p className="mt-1 text-sm leading-5 text-[#60716d]">Después de colocar y ampliar cada producto 15%, mejoraremos nitidez, iluminación y detalle sin alterar el diseño de la plantilla.</p></div></div><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="outline" size="lg" onClick={reset}>Cancelar</Button><Button size="lg" onClick={startProcessing} className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]">▦ Crear con plantilla + mejorar calidad <ArrowRight /></Button></div></>}
                   {(busy || state === "completed" || state === "failed") && (
                     <div className="mt-7">
                       <div className="mb-3 flex items-end justify-between gap-4"><div><p className="font-extrabold">{state === "completed" ? "Procesamiento terminado" : state === "failed" ? "Revisa el proceso" : "Procesando imágenes"}</p><p className="mt-1 text-sm text-[#71807d]">{state === "waking" ? "Conectando con el servicio gratuito…" : state === "uploading" ? "Subiendo ZIP…" : state === "queued" ? "Trabajo en cola…" : job ? `${job.processed_images} de ${job.total_images} imágenes` : "Preparando archivos…"}</p></div><span className="text-2xl font-black tabular-nums">{Math.round(progress)}%</span></div>
                       <Progress value={progress} className="h-3 bg-[#e4ebe8] [&_[data-slot=progress-indicator]]:bg-[#ef312d]" />
-                      {state === "completed" && job && <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-[#102321] p-5 text-white"><div className="flex items-center gap-4"><div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#47b881] text-[#102321]"><Check className="size-5 stroke-[3]" /></div><div className="flex-1"><p className="font-extrabold">{job.processed_images} archivos listos</p><p className="mt-1 text-sm text-white/65">Elige entre original normalizado o acabado de estudio</p></div></div><div className="grid gap-3 sm:grid-cols-2"><Button asChild size="lg" className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]"><a href={`${API_URL}${job.download_png_url || job.download_url}`}><Download /> ZIP · PNG sin fondo</a></Button><Button asChild size="lg" variant="outline" className="border-white/25 bg-white font-bold text-[#102321] hover:bg-white/90"><a href={`${API_URL}${job.download_jpeg_url}`}><Download /> ZIP · JPEG fondo blanco</a></Button><Button asChild size="lg" className="bg-[#47b881] font-bold text-[#102321] hover:bg-[#59c991] sm:col-span-2"><a href={`${API_URL}${job.download_studio_url}`}><Sparkles /> ZIP · JPEG calidad estudio</a></Button></div></div>}
+                      {state === "completed" && job && <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-[#102321] p-5 text-white"><div className="flex items-center gap-4"><div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#47b881] text-[#102321]"><Check className="size-5 stroke-[3]" /></div><div className="flex-1"><p className="font-extrabold">{job.processed_images} archivos listos</p><p className="mt-1 text-sm text-white/65">JPEG de alta calidad · 500 × 500 px · plantilla protegida.</p></div></div><Button asChild size="lg" className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]"><a href={`${API_URL}${job.download_template_url}`}><Download /> Descargar imágenes en ZIP</a></Button></div>}
                       {state === "failed" && <div className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><p className="text-sm font-semibold">{job?.error || "No fue posible conectar con el servicio."}</p><Button variant="outline" size="sm" onClick={reset}><RefreshCw /> Volver</Button></div>}
                     </div>
                   )}
                 </div>
-              )}
+              ))}
               <input ref={inputRef} type="file" accept=".zip,application/zip" className="hidden" onChange={(e) => acceptFile(e.target.files?.[0])} />
             </div>
           </div>
@@ -215,8 +243,8 @@ export default function Home() {
         </div>
 
         <aside className="space-y-5 lg:pt-[172px]">
-          <div className="rounded-[24px] bg-[#102321] p-6 text-white shadow-[0_20px_55px_rgba(16,35,33,.18)]"><div className="mb-6 flex items-center justify-between"><p className="font-black">Resultados incluidos</p><Sparkles className="size-5 text-[#ef312d]" /></div><div className="grid grid-cols-2 gap-3"><Stat value="500" label="PNG y JPEG" suffix="× 500" /><Stat value="1500" label="calidad estudio" suffix="× 1500" /><Stat value="Auto" label="luz y nitidez" /><Stat value="$0" label="costo adicional" /></div></div>
-          <div className="rounded-[24px] border border-black/8 bg-white p-6"><p className="mb-5 font-black">Así funciona</p><ol className="space-y-5"><Step number="01" icon={<FileArchive />} title="Extraemos" text="Validamos el ZIP y localizamos todas las imágenes compatibles." /><Step number="02" icon={<Sparkles />} title="Recortamos" text="La IA elimina el fondo y conserva los bordes del producto." /><Step number="03" icon={<ImageIcon />} title="Normalizamos" text="Centramos cada pieza y generamos el ZIP final." /></ol></div>
+          <div className="rounded-[24px] bg-[#102321] p-6 text-white shadow-[0_20px_55px_rgba(16,35,33,.18)]"><div className="mb-6 flex items-center justify-between"><p className="font-black">Resultado final</p><Sparkles className="size-5 text-[#ef312d]" /></div><div className="grid grid-cols-2 gap-3"><Stat value="500" label="JPEG final" suffix="× 500" /><Stat value="+15%" label="tamaño visual" /><Stat value="Auto" label="luz y nitidez" /><Stat value="1 ZIP" label="nombre de plantilla" /></div></div>
+          <div className="rounded-[24px] border border-black/8 bg-white p-6"><p className="mb-5 font-black">Así funciona</p><ol className="space-y-5"><Step number="01" icon={<FileArchive />} title="Preparamos" text="Validamos las fotografías y eliminamos sus fondos." /><Step number="02" icon={<ImageIcon />} title="Componemos" text="Las colocamos en la plantilla y aumentamos su tamaño visual 15% desde el centro." /><Step number="03" icon={<Sparkles />} title="Mejoramos" text="Optimizamos el producto y generamos un único ZIP en JPEG." /></ol></div>
           <div className="flex items-center gap-3 px-2 text-sm text-[#657572]"><LoaderCircle className="size-4" /><span>Servicio: <b className="capitalize">{API_CONFIGURED ? (job?.provider || "conectado") : "pendiente de conexión"}</b></span></div>
         </aside>
       </section>

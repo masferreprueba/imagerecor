@@ -1,5 +1,74 @@
 from pathlib import Path
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
+
+
+def compose_product_template(
+    source: Path,
+    template_source: Path,
+    destination: Path,
+    zoom: float = 1.15,
+) -> None:
+    """Place the product, then enhance its visible area without altering the overlay."""
+    with Image.open(source) as opened:
+        image = opened.convert("RGBA")
+        alpha = image.getchannel("A")
+        bbox = alpha.getbbox()
+        alpha.close()
+        if not bbox:
+            image.close()
+            raise ValueError("La imagen procesada no contiene un objeto visible.")
+        product = image.crop(bbox)
+        image.close()
+
+    with Image.open(template_source) as opened_template:
+        template = opened_template.convert("RGBA")
+    if template.size != (500, 500):
+        product.close(); template.close()
+        raise ValueError("La plantilla debe medir exactamente 500 × 500 px.")
+
+    template_alpha = template.getchannel("A")
+    window_mask = ImageOps.invert(template_alpha)
+    window_bbox = window_mask.getbbox()
+    template_alpha.close()
+    if not window_bbox:
+        product.close(); template.close(); window_mask.close()
+        raise ValueError("La plantilla no contiene un área transparente.")
+
+    window_width = window_bbox[2] - window_bbox[0]
+    window_height = window_bbox[3] - window_bbox[1]
+    ratio = min(window_width / product.width, window_height / product.height) * zoom
+    dimensions = (max(1, round(product.width * ratio)), max(1, round(product.height * ratio)))
+    product = product.resize(dimensions, Image.Resampling.LANCZOS)
+
+    x = round(window_bbox[0] + (window_width - product.width) / 2)
+    y = round(window_bbox[1] + (window_height - product.height) / 2)
+    product_layer = Image.new("RGBA", (500, 500), (0, 0, 0, 0))
+    product_layer.alpha_composite(product, (x, y))
+    layer_alpha = product_layer.getchannel("A")
+    clipped_alpha = ImageChops.multiply(layer_alpha, window_mask)
+    product_layer.putalpha(clipped_alpha)
+
+    composition = Image.new("RGBA", (500, 500), "white")
+    composition.alpha_composite(product_layer)
+    composition.alpha_composite(template)
+
+    # The photographic correction happens after composition. It is blended only
+    # through the transparent template window, so logos, copy, frames and other
+    # opaque template pixels keep their original appearance and position.
+    base = composition.convert("RGB")
+    enhanced = base
+    if min(product.size) >= 80:
+        enhanced = enhanced.filter(ImageFilter.MedianFilter(3))
+    enhanced = ImageEnhance.Contrast(enhanced).enhance(1.035)
+    enhanced = ImageEnhance.Color(enhanced).enhance(1.01)
+    enhanced = enhanced.filter(ImageFilter.UnsharpMask(radius=1.2, percent=110, threshold=3))
+    result = Image.composite(enhanced, base, window_mask)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    result.save(destination, "JPEG", quality=97, subsampling=0, optimize=True, progressive=True)
+
+    product.close()
+    template.close(); window_mask.close(); product_layer.close(); layer_alpha.close()
+    clipped_alpha.close(); composition.close(); base.close(); enhanced.close(); result.close()
 
 
 def normalize_product(
