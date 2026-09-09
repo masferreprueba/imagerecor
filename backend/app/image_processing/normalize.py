@@ -1,7 +1,7 @@
 from pathlib import Path
 from PIL import Image, ImageEnhance, ImageFilter
 
-VISUAL_SCALE = 1.15
+VISUAL_SCALE = 1.25
 
 
 def normalize_product(

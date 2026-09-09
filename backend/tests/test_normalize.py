@@ -13,7 +13,7 @@ def test_normalize_centers_visible_object(tmp_path: Path):
     result = Image.open(output)
     assert result.size == (500, 500)
     assert result.mode == "RGBA"
-    assert result.getchannel("A").getbbox() == (20, 173, 480, 326)
+    assert result.getchannel("A").getbbox() == (0, 166, 500, 333)
 
 
 def test_normalize_creates_white_background_jpeg(tmp_path: Path):
@@ -21,7 +21,7 @@ def test_normalize_creates_white_background_jpeg(tmp_path: Path):
     png_output = tmp_path / "output.png"
     jpeg_output = tmp_path / "output.jpg"
     image = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
-    image.paste((255, 0, 0, 255), (25, 25, 75, 75))
+    image.paste((255, 0, 0, 255), (25, 40, 75, 60))
     image.save(source)
 
     normalize_product(source, png_output, jpeg_destination=jpeg_output)
@@ -31,6 +31,21 @@ def test_normalize_creates_white_background_jpeg(tmp_path: Path):
     assert result.mode == "RGB"
     corner = result.getpixel((0, 0))
     assert all(channel >= 250 for channel in corner)
+
+
+def test_normalize_25_percent_keeps_portrait_and_square_centered(tmp_path: Path):
+    for name, dimensions, expected_bbox in [
+        ("portrait", (50, 150), (166, 0, 333, 500)),
+        ("square", (100, 100), (0, 0, 500, 500)),
+    ]:
+        source = tmp_path / f"{name}.png"
+        output = tmp_path / f"{name}_output.png"
+        with Image.new("RGBA", dimensions, (255, 0, 0, 255)) as image:
+            image.save(source)
+        normalize_product(source, output)
+        with Image.open(output) as result:
+            assert result.size == (500, 500)
+            assert result.getchannel("A").getbbox() == expected_bbox
 
 
 def test_create_studio_product_creates_large_jpeg_with_neutral_background(tmp_path: Path):
