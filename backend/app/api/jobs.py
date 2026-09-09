@@ -9,6 +9,7 @@ from sqlalchemy import select
 from ..config import get_settings
 from ..auth import require_auth
 from ..database import JobRecord, SessionLocal
+from ..filenames import normalize_zip_filename
 from ..progress import calculate_progress
 from ..schemas import JobResponse, Preview
 from ..security import UnsafeArchive, inspect_zip
@@ -54,7 +55,9 @@ def serialize(record: JobRecord) -> JobResponse:
 
 @router.post("", response_model=JobResponse, status_code=202)
 def create_job(file: UploadFile = File(...), x_user_id: str | None = Header(default=None)):
-    if not file.filename or not file.filename.lower().endswith(".zip"):
+    try:
+        client_filename = normalize_zip_filename(file.filename or "")
+    except ValueError:
         raise HTTPException(415, "Solo se aceptan archivos ZIP.")
     job_id = str(uuid.uuid4())
     root = settings.storage_root / job_id
@@ -71,7 +74,7 @@ def create_job(file: UploadFile = File(...), x_user_id: str | None = Header(defa
                 destination.write(chunk)
         images = inspect_zip(archive, settings)
         with SessionLocal.begin() as session:
-            record = JobRecord(id=job_id, user_id=x_user_id, filename=Path(file.filename).name[:255], provider=settings.image_api_provider, status="queued", total_images=len(images))
+            record = JobRecord(id=job_id, user_id=x_user_id, filename=client_filename, provider=settings.image_api_provider, status="queued", total_images=len(images))
             session.add(record)
         if settings.task_queue.lower() == "celery":
             process_job_task.delay(job_id)
@@ -129,15 +132,12 @@ def download_job_format(job_id: str, output_format: str):
             raise HTTPException(404, "El ZIP final todavía no está disponible.")
         if output_format == "png":
             path = Path(record.output_path)
-            suffix = "png_sin_fondo"
         elif output_format == "jpeg":
             path = settings.storage_root / job_id / "imagenes_jpeg_fondo_blanco.zip"
-            suffix = "jpeg_fondo_blanco"
         else:
             path = settings.storage_root / job_id / "imagenes_jpeg_calidad_estudio.zip"
-            suffix = "jpeg_calidad_estudio"
         if not path.is_file(): raise HTTPException(410, "El archivo ya expiró.")
-        return FileResponse(path, media_type="application/zip", filename=f"{Path(record.filename).stem}_{suffix}.zip")
+        return FileResponse(path, media_type="application/zip", filename=record.filename)
 
 
 @router.get("/{job_id}/files/{kind}/{filename}")
