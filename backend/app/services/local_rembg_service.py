@@ -12,7 +12,7 @@ class LocalRembgProvider(BackgroundRemovalProvider):
 
     name = "local-rembg"
 
-    def __init__(self, model: str = "silueta", max_side: int = 1600):
+    def __init__(self, model: str = "u2netp", max_side: int = 1024):
         # This provider has no API key: inference runs inside our own process.
         self.model = model
         self.max_side = max(512, max_side)

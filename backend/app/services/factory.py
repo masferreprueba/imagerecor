@@ -27,8 +27,8 @@ def create_mixed_provider_chain(
     max_retries: int,
     on_attempt=None,
     local_enabled: bool = True,
-    local_model: str = "silueta",
-    local_max_side: int = 1600,
+    local_model: str = "u2netp",
+    local_max_side: int = 1024,
 ) -> BackgroundRemovalProvider:
     providers = [create_provider(item.provider, item.api_key, timeout, max_retries) for item in credentials]
     credential_ids: list[int | None] = [item.credential_id for item in credentials]
