@@ -13,7 +13,7 @@ def test_normalize_centers_visible_object(tmp_path: Path):
     result = Image.open(output)
     assert result.size == (500, 500)
     assert result.mode == "RGBA"
-    assert result.getchannel("A").getbbox() == (50, 183, 450, 316)
+    assert result.getchannel("A").getbbox() == (20, 173, 480, 326)
 
 
 def test_normalize_creates_white_background_jpeg(tmp_path: Path):

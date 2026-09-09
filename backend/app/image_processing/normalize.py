@@ -1,6 +1,8 @@
 from pathlib import Path
 from PIL import Image, ImageEnhance, ImageFilter
 
+VISUAL_SCALE = 1.15
+
 
 def normalize_product(
     source: Path,
@@ -19,7 +21,8 @@ def normalize_product(
         alpha.close()
         image.close()
         max_side = max(1, round(size * (1 - 2 * margin_percent / 100)))
-        ratio = min(max_side / product.width, max_side / product.height)
+        # Grow uniformly from the center while preserving the 500 × 500 canvas.
+        ratio = min(max_side / product.width, max_side / product.height) * VISUAL_SCALE
         dimensions = (max(1, round(product.width * ratio)), max(1, round(product.height * ratio)))
         resized = product.resize(dimensions, Image.Resampling.LANCZOS)
         product.close()
@@ -61,7 +64,7 @@ def create_studio_product(
         image.close()
 
     max_side = max(1, round(size * (1 - 2 * margin_percent / 100)))
-    ratio = min(max_side / product.width, max_side / product.height)
+    ratio = min(max_side / product.width, max_side / product.height) * VISUAL_SCALE
     dimensions = (
         max(1, round(product.width * ratio)),
         max(1, round(product.height * ratio)),
