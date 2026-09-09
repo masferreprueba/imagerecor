@@ -23,6 +23,5 @@ class JobResponse(BaseModel):
     download_png_url: str | None
     download_jpeg_url: str | None
     download_studio_url: str | None
-    download_template_url: str | None
     previews: list[Preview]
     created_at: datetime

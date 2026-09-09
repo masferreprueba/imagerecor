@@ -1,6 +1,6 @@
 from pathlib import Path
 from PIL import Image
-from app.image_processing.normalize import compose_product_template, create_studio_product, normalize_product
+from app.image_processing.normalize import create_studio_product, normalize_product
 
 
 def test_normalize_centers_visible_object(tmp_path: Path):
@@ -48,23 +48,3 @@ def test_create_studio_product_creates_large_jpeg_with_neutral_background(tmp_pa
     assert all(channel >= 240 for channel in result.getpixel((0, 0)))
     center = result.getpixel((750, 750))
     assert center[0] > center[1] * 2
-
-
-def test_template_composition_preserves_overlay_and_size(tmp_path: Path):
-    source = tmp_path / "product.png"
-    template = tmp_path / "template.png"
-    output = tmp_path / "final.jpg"
-    product = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
-    product.paste((220, 30, 20, 255), (25, 25, 75, 75))
-    product.save(source)
-    overlay = Image.new("RGBA", (500, 500), (10, 40, 80, 255))
-    overlay.paste((0, 0, 0, 0), (100, 100, 400, 400))
-    overlay.save(template)
-
-    compose_product_template(source, template, output)
-
-    with Image.open(output) as result:
-        assert result.size == (500, 500)
-        corner = result.convert("RGB").getpixel((10, 10))
-        assert all(abs(actual - expected) <= 8 for actual, expected in zip(corner, (10, 40, 80)))
-        assert result.getpixel((250, 250))[0] > 150

@@ -1,24 +1,32 @@
 import json
 import shutil
-import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from .celery_app import celery_app
 from ..config import get_settings
 from ..database import update_job
 from ..api_credentials import active_provider_keys, record_api_attempt
-from ..image_processing import compose_product_template
+from ..image_processing import create_studio_product, normalize_product
 from ..security import safe_extract_images
 from ..services import create_mixed_provider_chain
-from ..template_assets import load_template_metadata
 
 
-def _process_one(source: Path, index: int, cutouts: Path, template_outputs: Path, template_source: Path, provider) -> tuple[str, bool, str | None]:
+def _process_one(source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path, studio_outputs: Path, provider) -> tuple[str, bool, str | None]:
     try:
         cutout = cutouts / f"{source.stem}.png"
-        template_output = template_outputs / f"{index:06d}.jpg"
+        png_output = png_outputs / f"{source.stem}.png"
+        jpeg_output = jpeg_outputs / f"{source.stem}.jpg"
+        studio_output = studio_outputs / f"{source.stem}_estudio.jpg"
         provider.remove_background(source, cutout)
-        compose_product_template(cutout, template_source, template_output, zoom=1.15)
+        settings = get_settings()
+        normalize_product(
+            cutout,
+            png_output,
+            settings.output_size,
+            settings.object_margin_percent,
+            jpeg_destination=jpeg_output,
+        )
+        create_studio_product(cutout, studio_output)
         return source.name, True, None
     except Exception as exc:
         return source.name, False, str(exc)
@@ -29,17 +37,17 @@ def process_job(job_id: str) -> None:
     root = settings.storage_root / job_id
     originals = root / "originals"
     cutouts = root / "cutouts"
-    template_outputs = root / "outputs_template_work"
-    template_finals = root / "outputs_template"
+    png_outputs = root / "outputs"
+    jpeg_outputs = root / "outputs_jpeg"
+    studio_outputs = root / "outputs_studio"
     try:
         update_job(job_id, status="extracting", error=None)
         images = safe_extract_images(root / "input.zip", originals, settings)
-        template_metadata = load_template_metadata(root)
-        template_source = root / "template.png"
         update_job(job_id, status="processing", total_images=len(images))
         cutouts.mkdir(parents=True, exist_ok=True)
-        template_outputs.mkdir(parents=True, exist_ok=True)
-        template_finals.mkdir(parents=True, exist_ok=True)
+        png_outputs.mkdir(parents=True, exist_ok=True)
+        jpeg_outputs.mkdir(parents=True, exist_ok=True)
+        studio_outputs.mkdir(parents=True, exist_ok=True)
         credentials = active_provider_keys()
         provider = create_mixed_provider_chain(
             credentials,
@@ -53,7 +61,7 @@ def process_job(job_id: str) -> None:
         processed = failed = 0
         failures: list[dict[str, str]] = []
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
-            futures = [pool.submit(_process_one, image, index, cutouts, template_outputs, template_source, provider) for index, image in enumerate(images, start=1)]
+            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, provider) for image in images]
             for future in as_completed(futures):
                 name, ok, error = future.result()
                 if ok: processed += 1
@@ -64,18 +72,16 @@ def process_job(job_id: str) -> None:
             detail = failures[0]["error"] if failures else "Error desconocido."
             raise RuntimeError(f"Ninguna imagen pudo procesarse. {detail}")
         if failures:
-            (root / "errores.json").write_text(json.dumps(failures, ensure_ascii=False, indent=2), encoding="utf-8")
+            error_report = json.dumps(failures, ensure_ascii=False, indent=2)
+            (png_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+            (jpeg_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+            (studio_outputs / "errores.json").write_text(error_report, encoding="utf-8")
         update_job(job_id, status="packaging")
-        base_name = template_metadata["base_name"]
-        for sequence, temporary in enumerate(sorted(template_outputs.glob("*.jpg")), start=1):
-            temporary.replace(template_finals / f"{base_name}_{sequence:03d}.jpg")
-        template_archive = root / f"{base_name}.zip"
-        with zipfile.ZipFile(template_archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
-            for final_image in sorted(template_finals.glob("*.jpg")):
-                bundle.write(final_image, arcname=final_image.name)
-        update_job(job_id, status="completed", output_path=str(template_archive))
+        png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
+        shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
+        shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)
+        update_job(job_id, status="completed", output_path=str(png_archive))
         shutil.rmtree(cutouts, ignore_errors=True)
-        shutil.rmtree(template_outputs, ignore_errors=True)
     except Exception as exc:
         update_job(job_id, status="failed", error=str(exc)[:2000])
 
