@@ -1,0 +1,52 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/build-windows-exe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Compilar aplicación de Windows
+        shell: pwsh
+        run: |
+          dotnet publish desktop/MasFerreImageStudio.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output desktop/publish
+
+      - name: Verificar ejecutable
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem desktop/publish -Filter "MasFerre-Estudio-de-Imagenes.exe" | Select-Object -First 1
+          if (-not $exe) { throw "No se generó el archivo EXE" }
+          Write-Host "Ejecutable generado: $($exe.FullName)"
+
+      - name: Crear paquete descargable
+        shell: pwsh
+        run: Compress-Archive -Path desktop/publish/* -DestinationPath MasFerre-Estudio-de-Imagenes-Windows.zip
+
+      - name: Publicar instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: MasFerre-Estudio-de-Imagenes-Windows
+          path: MasFerre-Estudio-de-Imagenes-Windows.zip
+          if-no-files-found: error
+          retention-days: 30
