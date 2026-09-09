@@ -35,3 +35,13 @@ def test_local_rembg_writes_transparent_png(tmp_path: Path, monkeypatch):
     with Image.open(destination) as result:
         assert result.mode == "RGBA"
         assert result.getchannel("A").getbbox() == (5, 5, 15, 15)
+
+
+def test_local_rembg_limits_large_inference_input(tmp_path: Path):
+    source = tmp_path / "large.jpg"
+    Image.new("RGB", (4000, 3000), "white").save(source)
+
+    prepared = LocalRembgProvider("silueta", max_side=1600)._prepare_input(source)
+
+    with Image.open(io.BytesIO(prepared)) as image:
+        assert image.size == (1600, 1200)

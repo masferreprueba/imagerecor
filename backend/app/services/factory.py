@@ -28,11 +28,12 @@ def create_mixed_provider_chain(
     on_attempt=None,
     local_enabled: bool = True,
     local_model: str = "silueta",
+    local_max_side: int = 1600,
 ) -> BackgroundRemovalProvider:
     providers = [create_provider(item.provider, item.api_key, timeout, max_retries) for item in credentials]
     credential_ids: list[int | None] = [item.credential_id for item in credentials]
     if local_enabled:
-        providers.append(LocalRembgProvider(model=local_model))
+        providers.append(LocalRembgProvider(model=local_model, max_side=local_max_side))
         credential_ids.append(None)
     return FallbackProvider(
         providers,

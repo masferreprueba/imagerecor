@@ -116,7 +116,7 @@ export default function Home() {
       setJob(payload); setState(payload.status);
       pollRef.current = setInterval(() => refreshJob(payload.id).catch((error) => {
         pollFailuresRef.current += 1;
-        if (pollFailuresRef.current < 4) return;
+        if (pollFailuresRef.current < 12) return;
         stopPolling();
         setState("failed");
         setJob((current) => current ? { ...current, status: "failed", error: "Se perdió temporalmente la conexión. Pulsa Volver e inténtalo nuevamente." } : current);
