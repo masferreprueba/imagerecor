@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     auth_secret: str = ""
     auth_token_hours: int = 12
     api_key_encryption_secret: str = ""
+    google_drive_enabled: bool = False
+    google_drive_folder_id: str = ""
+    google_drive_service_account_json: str = ""
+    google_drive_oauth_client_id: str = ""
+    google_drive_oauth_client_secret: str = ""
+    google_drive_oauth_refresh_token: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:

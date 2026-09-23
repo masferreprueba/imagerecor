@@ -3,7 +3,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from ..config import get_settings
@@ -47,14 +47,22 @@ def serialize(record: JobRecord) -> JobResponse:
         failed_images=record.failed_images, progress=progress, error=record.error,
         download_url=f"/api/jobs/{record.id}/download" if record.status == "completed" else None,
         download_png_url=f"/api/jobs/{record.id}/download/png" if record.status == "completed" else None,
-        download_jpeg_url=f"/api/jobs/{record.id}/download/jpeg" if record.status == "completed" else None,
-        download_studio_url=f"/api/jobs/{record.id}/download/studio" if record.status == "completed" else None,
+        download_jpeg_url=f"/api/jobs/{record.id}/download/jpeg" if record.status == "completed" and record.output_mode == "standard" else None,
+        download_studio_url=f"/api/jobs/{record.id}/download/studio" if record.status == "completed" and record.output_mode == "standard" else None,
+        output_mode=record.output_mode or "standard", drive_status=record.drive_status,
+        drive_folder_url=record.drive_folder_url, drive_error=record.drive_error,
         previews=previews, created_at=record.created_at,
     )
 
 
 @router.post("", response_model=JobResponse, status_code=202)
-def create_job(file: UploadFile = File(...), x_user_id: str | None = Header(default=None)):
+def create_job(
+    file: UploadFile = File(...),
+    output_mode: str = Form(default="standard"),
+    x_user_id: str | None = Header(default=None),
+):
+    if output_mode not in {"standard", "png_4000"}:
+        raise HTTPException(400, "Modo de salida no permitido.")
     try:
         client_filename = normalize_zip_filename(file.filename or "")
     except ValueError:
@@ -74,7 +82,12 @@ def create_job(file: UploadFile = File(...), x_user_id: str | None = Header(defa
                 destination.write(chunk)
         images = inspect_zip(archive, settings)
         with SessionLocal.begin() as session:
-            record = JobRecord(id=job_id, user_id=x_user_id, filename=client_filename, provider=settings.image_api_provider, status="queued", total_images=len(images))
+            record = JobRecord(
+                id=job_id, user_id=x_user_id, filename=client_filename,
+                provider=settings.image_api_provider, status="queued",
+                total_images=len(images), output_mode=output_mode,
+                drive_status="pending" if output_mode == "png_4000" else None,
+            )
             session.add(record)
         if settings.task_queue.lower() == "celery":
             process_job_task.delay(job_id)

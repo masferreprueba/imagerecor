@@ -9,3 +9,5 @@ sqlalchemy==2.0.43
 psycopg[binary]==3.2.9
 celery[redis]==5.5.3
 cryptography==45.0.6
+google-api-python-client==2.200.0
+google-auth==2.58.0

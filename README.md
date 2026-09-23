@@ -9,6 +9,7 @@ Aplicación web completa para recibir un ZIP de fotografías de producto, elimin
 - Proveedores intercambiables: Claid, PhotoRoom y Remove.bg.
 - Respaldo local gratuito con rembg/Silueta cuando ninguna API está disponible.
 - Recorte por canal alfa, escala proporcional, centrado y margen uniforme con Pillow.
+- Salida independiente en PNG transparente de 4000 × 4000 px con guardado automático en Google Drive.
 - Acabado de estudio gratuito en JPEG 1500 × 1500, con fondo neutro, sombra natural y ajustes conservadores de luz, color y nitidez.
 - Procesamiento concurrente y cola distribuida Celery + Redis para producción.
 - PostgreSQL opcional para historial y SQLite como modo sencillo de desarrollo.
@@ -78,10 +79,15 @@ uvicorn app.main:app --reload --app-dir backend
 | `TEMP_TTL_HOURS` | Tiempo de conservación del ZIP final |
 | `TASK_QUEUE` | `inline` para desarrollo o `celery` para producción |
 | `DATABASE_URL` | Conexión SQLite o PostgreSQL |
+| `GOOGLE_DRIVE_ENABLED` | Activa la carga de los PNG 4000 × 4000 |
+| `GOOGLE_DRIVE_FOLDER_ID` | Carpeta principal donde se crea una subcarpeta por ZIP |
+| `GOOGLE_DRIVE_OAUTH_CLIENT_ID` | ID del cliente OAuth de la cuenta propietaria |
+| `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET` | Secreto del cliente OAuth; sólo debe guardarse en Render |
+| `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN` | Token de actualización de la cuenta propietaria; sólo debe guardarse en Render |
 
 ## API
 
-- `POST /api/jobs`: recibe `multipart/form-data` con un campo `file` de tipo ZIP.
+- `POST /api/jobs`: recibe `multipart/form-data` con `file` y `output_mode` (`standard` o `png_4000`).
 - `GET /api/jobs/{id}`: devuelve estado, progreso, conteos y vistas previas.
 - `GET /api/jobs/{id}/download`: descarga el ZIP terminado.
 - `GET /api/jobs/{id}/download/studio`: descarga el ZIP de fotografías con acabado de estudio.
@@ -129,3 +135,4 @@ La tabla de trabajos ya admite `user_id`; esto permite sumar autenticación e hi
 - Reduce `MAX_UPLOAD_MB` si el servidor tiene poca memoria o disco.
 - Coloca la API detrás de HTTPS, un proxy con límite de petición y rate limiting.
 - Rota la llave del proveedor si se expone.
+- No publiques las credenciales OAuth de Google Drive ni las incluyas en GitHub.
