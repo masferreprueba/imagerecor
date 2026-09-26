@@ -16,6 +16,10 @@
     .highres{background:#1f5c48;color:#fff}.drive-link{grid-column:1/-1;background:#4285f4;color:#fff}
     .progress-metrics{display:flex;align-items:flex-end;gap:14px}
     .elapsed{min-width:74px;padding:5px 9px;border-radius:8px;background:#edf3f1;color:#52625f;font-variant-numeric:tabular-nums;text-align:center;font-size:15px;font-weight:900}
+    .legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;color:#667572;font-size:12px}
+    .legal-links a{color:inherit;text-underline-offset:3px}.legal-links a:hover{color:#ef312d}
+    .login-legal{margin-top:22px;padding-top:18px;border-top:1px solid #e4e9e7}
+    .site-footer{padding:0 16px 30px}
   </style>
 </head>
 <body>
@@ -27,6 +31,7 @@
       <label class="field">Contraseña<input id="password" name="password" type="password" autocomplete="current-password" required></label>
       <button id="loginButton" class="btn primary" type="submit">Ingresar →</button>
       <div id="loginError" class="login-error hidden"></div>
+      <nav class="legal-links login-legal" aria-label="Información legal"><a href="/privacy.html">Privacidad</a><a href="/terms.html">Términos de uso</a><a href="mailto:fotografiasanver20@gmail.com">Contacto</a></nav>
     </form>
   </section>
   <div id="appShell" class="hidden">
@@ -58,6 +63,7 @@
       <div class="steps"><h2>Así funciona</h2><div class="step"><span class="num">01</span><div><strong>Extraemos</strong><p>Validamos el ZIP y localizamos las imágenes compatibles.</p></div></div><div class="step"><span class="num">02</span><div><strong>Recortamos</strong><p>La IA elimina el fondo y conserva los bordes del producto.</p></div></div><div class="step"><span class="num">03</span><div><strong>Normalizamos</strong><p>Centramos cada pieza, generamos ambos tamaños y enviamos los PNG 4000 a Drive.</p></div></div></div>
     </aside>
   </main>
+  <footer class="site-footer"><nav class="legal-links" aria-label="Información legal"><span>© Mas Ferre</span><a href="/privacy.html">Política de privacidad</a><a href="/terms.html">Términos de uso</a><a href="mailto:fotografiasanver20@gmail.com">fotografiasanver20@gmail.com</a></nav></footer>
   <div id="collageModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="collageTitle">
     <section class="modal-card">
       <header class="modal-head"><div><h2 id="collageTitle">Crear collage del producto</h2><p>Elige la plantilla y asigna una fotografía a cada número. Se conserva el aumento centrado del 25% de las nuevas imágenes procesadas.</p></div><button id="closeCollage" class="close" type="button" aria-label="Cerrar">✕</button></header>
