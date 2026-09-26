@@ -6,8 +6,7 @@ Aplicación web completa para recibir un ZIP de fotografías de producto, elimin
 
 - Interfaz responsive en Next.js con drag & drop, estados, progreso, vistas previas y descarga.
 - API en FastAPI con validación segura de ZIP, límites de carga y protección frente a *ZIP Slip* y bombas de compresión.
-- Proveedores intercambiables: Claid, PhotoRoom y Remove.bg.
-- Respaldo local gratuito con rembg/Silueta cuando ninguna API está disponible.
+- Proveedores externos intercambiables: PhotoRoom, Remove.bg, Poof.bg y Claid.
 - Recorte por canal alfa, escala proporcional, centrado y margen uniforme con Pillow.
 - Salida independiente en PNG transparente de 4000 × 4000 px con guardado automático en Google Drive.
 - Acabado de estudio gratuito en JPEG 1500 × 1500, con fondo neutro, sombra natural y ajustes conservadores de luz, color y nitidez.
@@ -70,8 +69,6 @@ uvicorn app.main:app --reload --app-dir backend
 | --- | --- |
 | `IMAGE_API_PROVIDER` | `claid`, `photoroom` o `removebg` |
 | `IMAGE_API_KEY` | Llave privada del proveedor |
-| `LOCAL_BACKGROUND_REMOVAL_ENABLED` | Activa el respaldo local gratuito; por defecto `true` |
-| `LOCAL_BACKGROUND_REMOVAL_MODEL` | Modelo local de rembg; por defecto `silueta` |
 | `NEXT_PUBLIC_API_URL` | URL pública de FastAPI |
 | `OUTPUT_SIZE` | Lado del PNG final; por defecto 500 |
 | `OBJECT_MARGIN_PERCENT` | Margen por lado; por defecto 10 |
@@ -95,7 +92,7 @@ uvicorn app.main:app --reload --app-dir backend
 
 ## Proveedores
 
-La integración está desacoplada en `backend/app/services/`. Claid usa su endpoint de carga directa, PhotoRoom usa `/v1/segment` y Remove.bg usa `/v1.0/removebg`. Para agregar otro proveedor, implementa `BackgroundRemovalProvider` y regístralo en `factory.py`.
+La integración está desacoplada en `backend/app/services/`. PhotoRoom, Remove.bg, Poof.bg y Claid se prueban con las llaves activas configuradas, sin cargar modelos de IA en el servidor. Para agregar otro proveedor, implementa `BackgroundRemovalProvider` y regístralo en `factory.py`.
 
 ## Despliegue
 

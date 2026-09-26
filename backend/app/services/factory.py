@@ -4,7 +4,6 @@ from .photoroom_service import PhotoroomProvider
 from .removebg_service import RemoveBgProvider
 from .poof_service import PoofProvider
 from .fallback import FallbackProvider
-from .local_rembg_service import LocalRembgProvider
 
 PROVIDERS = {"claid": ClaidProvider, "photoroom": PhotoroomProvider, "removebg": RemoveBgProvider, "poof": PoofProvider}
 
@@ -26,15 +25,9 @@ def create_mixed_provider_chain(
     timeout: int,
     max_retries: int,
     on_attempt=None,
-    local_enabled: bool = True,
-    local_model: str = "u2netp",
-    local_max_side: int = 1024,
 ) -> BackgroundRemovalProvider:
     providers = [create_provider(item.provider, item.api_key, timeout, max_retries) for item in credentials]
     credential_ids: list[int | None] = [item.credential_id for item in credentials]
-    if local_enabled:
-        providers.append(LocalRembgProvider(model=local_model, max_side=local_max_side))
-        credential_ids.append(None)
     return FallbackProvider(
         providers,
         credential_ids=credential_ids,
