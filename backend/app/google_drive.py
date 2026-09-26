@@ -27,24 +27,14 @@ def _service_account_info(raw_value: str) -> dict:
     return json.loads(Path(value).read_text(encoding="utf-8"))
 
 
-def upload_png_folder(
-    settings: "Settings",
-    zip_filename: str,
-    png_directory: Path,
-) -> str:
+def _drive_credentials(settings: "Settings"):
     from google.oauth2 import service_account
     from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
 
-    if not settings.google_drive_enabled:
-        raise RuntimeError("Google Drive todavía no está habilitado en el servidor.")
-    if not settings.google_drive_folder_id:
-        raise RuntimeError("Falta GOOGLE_DRIVE_FOLDER_ID.")
     if settings.google_drive_oauth_refresh_token:
         if not settings.google_drive_oauth_client_id or not settings.google_drive_oauth_client_secret:
             raise ValueError("Faltan las credenciales OAuth de Google Drive.")
-        credentials = Credentials(
+        return Credentials(
             token=None,
             refresh_token=settings.google_drive_oauth_refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
@@ -52,11 +42,39 @@ def upload_png_folder(
             client_secret=settings.google_drive_oauth_client_secret,
             scopes=[DRIVE_SCOPE],
         )
-    else:
-        credentials = service_account.Credentials.from_service_account_info(
-            _service_account_info(settings.google_drive_service_account_json),
-            scopes=[DRIVE_SCOPE],
-        )
+    return service_account.Credentials.from_service_account_info(
+        _service_account_info(settings.google_drive_service_account_json),
+        scopes=[DRIVE_SCOPE],
+    )
+
+
+def get_storage_quota(settings: "Settings") -> dict[str, int | float | None]:
+    from googleapiclient.discovery import build
+
+    if not settings.google_drive_enabled:
+        raise RuntimeError("Google Drive todavía no está habilitado en el servidor.")
+    drive = build("drive", "v3", credentials=_drive_credentials(settings), cache_discovery=False)
+    quota = drive.about().get(fields="storageQuota").execute().get("storageQuota", {})
+    used = int(quota.get("usage", 0))
+    limit = int(quota["limit"]) if quota.get("limit") else None
+    available = max(limit - used, 0) if limit is not None else None
+    percent = min((used / limit) * 100, 100) if limit else None
+    return {"used_bytes": used, "limit_bytes": limit, "available_bytes": available, "used_percent": percent}
+
+
+def upload_png_folder(
+    settings: "Settings",
+    zip_filename: str,
+    png_directory: Path,
+) -> str:
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+
+    if not settings.google_drive_enabled:
+        raise RuntimeError("Google Drive todavía no está habilitado en el servidor.")
+    if not settings.google_drive_folder_id:
+        raise RuntimeError("Falta GOOGLE_DRIVE_FOLDER_ID.")
+    credentials = _drive_credentials(settings)
     drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
     folder = drive.files().create(
         body={
