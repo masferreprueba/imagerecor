@@ -100,13 +100,10 @@ def process_job(job_id: str) -> None:
                 (highres_outputs / "errores.json").write_text(error_report, encoding="utf-8")
         update_job(job_id, status="packaging")
         png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
-        highres_archive = png_archive
         if output_mode == "standard":
             shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
             shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)
-            highres_archive = Path(
-                shutil.make_archive(str(root / "imagenes_png_4000"), "zip", highres_outputs)
-            )
+            shutil.make_archive(str(root / "imagenes_png_4000"), "zip", highres_outputs)
         drive_outputs = png_outputs if output_mode == "png_4000" else highres_outputs
         if settings.google_drive_enabled:
             try:
@@ -114,7 +111,6 @@ def process_job(job_id: str) -> None:
                     settings,
                     zip_filename,
                     drive_outputs,
-                    highres_archive,
                 )
                 update_job_metadata(root, drive_status="completed", drive_folder_url=drive_url, drive_error=None)
                 logger.info("Google Drive upload completed for job %s", job_id)
