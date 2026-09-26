@@ -1,6 +1,6 @@
 # Mas Ferre — Procesador automático de imágenes
 
-Aplicación web completa para recibir un ZIP de fotografías de producto, eliminar sus fondos mediante IA y generar automáticamente salidas de **500 × 500 px** y **4000 × 4000 px**. Los PNG de 4000 × 4000 también se guardan en Google Drive.
+Aplicación web completa para recibir un ZIP de fotografías de producto, eliminar sus fondos mediante IA y generar automáticamente salidas de **500 × 500 px** y **4000 × 4000 px**. Los PNG de 4000 × 4000 y su archivo ZIP también se guardan en Google Drive.
 
 ## Qué incluye
 
@@ -8,7 +8,7 @@ Aplicación web completa para recibir un ZIP de fotografías de producto, elimin
 - API en FastAPI con validación segura de ZIP, límites de carga y protección frente a *ZIP Slip* y bombas de compresión.
 - Proveedores externos intercambiables: PhotoRoom, Remove.bg, Poof.bg y Claid.
 - Recorte por canal alfa, escala proporcional, centrado y margen uniforme con Pillow.
-- En cada ZIP, salida adicional en PNG transparente de 4000 × 4000 px con guardado automático en Google Drive.
+- En cada ZIP, salida adicional en PNG transparente de 4000 × 4000 px; los PNG y el ZIP resultante se guardan automáticamente en Google Drive.
 - Acabado de estudio gratuito en JPEG 1500 × 1500, con fondo neutro, sombra natural y ajustes conservadores de luz, color y nitidez.
 - Procesamiento concurrente y cola distribuida Celery + Redis para producción.
 - PostgreSQL opcional para historial y SQLite como modo sencillo de desarrollo.
@@ -76,7 +76,7 @@ uvicorn app.main:app --reload --app-dir backend
 | `TEMP_TTL_HOURS` | Tiempo de conservación del ZIP final |
 | `TASK_QUEUE` | `inline` para desarrollo o `celery` para producción |
 | `DATABASE_URL` | Conexión SQLite o PostgreSQL |
-| `GOOGLE_DRIVE_ENABLED` | Activa la carga de los PNG 4000 × 4000 |
+| `GOOGLE_DRIVE_ENABLED` | Activa la carga de los PNG 4000 × 4000 y su ZIP |
 | `GOOGLE_DRIVE_FOLDER_ID` | Carpeta principal donde se crea una subcarpeta por ZIP |
 | `GOOGLE_DRIVE_OAUTH_CLIENT_ID` | ID del cliente OAuth de la cuenta propietaria |
 | `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET` | Secreto del cliente OAuth; sólo debe guardarse en Render |

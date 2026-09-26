@@ -1,4 +1,5 @@
 import json
+import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -11,6 +12,9 @@ from ..job_metadata import read_job_metadata, update_job_metadata
 from ..security import safe_extract_images
 from ..services import create_mixed_provider_chain
 from ..google_drive import upload_png_folder
+
+
+logger = logging.getLogger(__name__)
 
 
 def _process_one(
@@ -96,17 +100,27 @@ def process_job(job_id: str) -> None:
                 (highres_outputs / "errores.json").write_text(error_report, encoding="utf-8")
         update_job(job_id, status="packaging")
         png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
+        highres_archive = png_archive
         if output_mode == "standard":
             shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
             shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)
-            shutil.make_archive(str(root / "imagenes_png_4000"), "zip", highres_outputs)
+            highres_archive = Path(
+                shutil.make_archive(str(root / "imagenes_png_4000"), "zip", highres_outputs)
+            )
         drive_outputs = png_outputs if output_mode == "png_4000" else highres_outputs
         if settings.google_drive_enabled:
             try:
-                drive_url = upload_png_folder(settings, zip_filename, drive_outputs)
+                drive_url = upload_png_folder(
+                    settings,
+                    zip_filename,
+                    drive_outputs,
+                    highres_archive,
+                )
                 update_job_metadata(root, drive_status="completed", drive_folder_url=drive_url, drive_error=None)
+                logger.info("Google Drive upload completed for job %s", job_id)
             except Exception as drive_exc:
                 update_job_metadata(root, drive_status="failed", drive_error=str(drive_exc)[:2000])
+                logger.warning("Google Drive upload failed for job %s: %s", job_id, drive_exc)
         else:
             update_job_metadata(root, drive_status="disabled", drive_error="Google Drive no está habilitado en Render.")
         update_job(job_id, status="completed", output_path=str(png_archive))
