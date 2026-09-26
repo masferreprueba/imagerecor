@@ -7,6 +7,7 @@ from ..config import get_settings
 from ..database import update_job
 from ..api_credentials import active_provider_keys, record_api_attempt
 from ..image_processing import create_studio_product, normalize_product
+from ..job_metadata import read_job_metadata, update_job_metadata
 from ..security import safe_extract_images
 from ..services import create_mixed_provider_chain
 from ..google_drive import upload_png_folder
@@ -49,8 +50,8 @@ def process_job(job_id: str) -> None:
         from ..database import JobRecord, SessionLocal
         with SessionLocal() as session:
             record = session.get(JobRecord, job_id)
-            output_mode = record.output_mode if record else "standard"
             zip_filename = record.filename if record else "Imagenes.zip"
+        output_mode = read_job_metadata(root)["output_mode"]
         update_job(job_id, status="extracting", error=None)
         images = safe_extract_images(root / "input.zip", originals, settings)
         update_job(job_id, status="processing", total_images=len(images))
@@ -93,11 +94,11 @@ def process_job(job_id: str) -> None:
             if settings.google_drive_enabled:
                 try:
                     drive_url = upload_png_folder(settings, zip_filename, png_outputs)
-                    update_job(job_id, drive_status="completed", drive_folder_url=drive_url, drive_error=None)
+                    update_job_metadata(root, drive_status="completed", drive_folder_url=drive_url, drive_error=None)
                 except Exception as drive_exc:
-                    update_job(job_id, drive_status="failed", drive_error=str(drive_exc)[:2000])
+                    update_job_metadata(root, drive_status="failed", drive_error=str(drive_exc)[:2000])
             else:
-                update_job(job_id, drive_status="disabled", drive_error="Google Drive no está habilitado en Render.")
+                update_job_metadata(root, drive_status="disabled", drive_error="Google Drive no está habilitado en Render.")
         update_job(job_id, status="completed", output_path=str(png_archive))
         shutil.rmtree(cutouts, ignore_errors=True)
     except Exception as exc:

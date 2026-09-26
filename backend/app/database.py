@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, inspect, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from .config import get_settings
 
@@ -21,10 +21,6 @@ class JobRecord(Base):
     failed_images: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    output_mode: Mapped[str] = mapped_column(String(30), default="standard")
-    drive_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    drive_folder_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    drive_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -66,17 +62,6 @@ def init_db() -> None:
     if settings.database_url.startswith("sqlite"):
         Path("data").mkdir(exist_ok=True)
     Base.metadata.create_all(engine)
-    columns = {column["name"] for column in inspect(engine).get_columns("jobs")}
-    migrations = {
-        "output_mode": "ALTER TABLE jobs ADD COLUMN output_mode VARCHAR(30) DEFAULT 'standard'",
-        "drive_status": "ALTER TABLE jobs ADD COLUMN drive_status VARCHAR(30)",
-        "drive_folder_url": "ALTER TABLE jobs ADD COLUMN drive_folder_url TEXT",
-        "drive_error": "ALTER TABLE jobs ADD COLUMN drive_error TEXT",
-    }
-    with engine.begin() as connection:
-        for column, statement in migrations.items():
-            if column not in columns:
-                connection.execute(text(statement))
 
 
 def update_job(job_id: str, **values) -> None:

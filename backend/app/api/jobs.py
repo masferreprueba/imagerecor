@@ -10,6 +10,7 @@ from ..config import get_settings
 from ..auth import require_auth
 from ..database import JobRecord, SessionLocal
 from ..filenames import normalize_zip_filename
+from ..job_metadata import read_job_metadata, update_job_metadata
 from ..progress import calculate_progress
 from ..schemas import JobResponse, Preview
 from ..security import UnsafeArchive, inspect_zip
@@ -32,6 +33,8 @@ def serialize(record: JobRecord) -> JobResponse:
     )
     previews: list[Preview] = []
     root = settings.storage_root / record.id
+    metadata = read_job_metadata(root)
+    output_mode = metadata["output_mode"]
     originals = root / "originals"
     if originals.exists():
         for source in sorted(originals.iterdir())[:6]:
@@ -47,10 +50,10 @@ def serialize(record: JobRecord) -> JobResponse:
         failed_images=record.failed_images, progress=progress, error=record.error,
         download_url=f"/api/jobs/{record.id}/download" if record.status == "completed" else None,
         download_png_url=f"/api/jobs/{record.id}/download/png" if record.status == "completed" else None,
-        download_jpeg_url=f"/api/jobs/{record.id}/download/jpeg" if record.status == "completed" and record.output_mode == "standard" else None,
-        download_studio_url=f"/api/jobs/{record.id}/download/studio" if record.status == "completed" and record.output_mode == "standard" else None,
-        output_mode=record.output_mode or "standard", drive_status=record.drive_status,
-        drive_folder_url=record.drive_folder_url, drive_error=record.drive_error,
+        download_jpeg_url=f"/api/jobs/{record.id}/download/jpeg" if record.status == "completed" and output_mode == "standard" else None,
+        download_studio_url=f"/api/jobs/{record.id}/download/studio" if record.status == "completed" and output_mode == "standard" else None,
+        output_mode=output_mode, drive_status=metadata["drive_status"],
+        drive_folder_url=metadata["drive_folder_url"], drive_error=metadata["drive_error"],
         previews=previews, created_at=record.created_at,
     )
 
@@ -81,12 +84,16 @@ def create_job(
                     raise HTTPException(413, f"El ZIP supera el límite de {settings.max_upload_mb} MB.")
                 destination.write(chunk)
         images = inspect_zip(archive, settings)
+        update_job_metadata(
+            root,
+            output_mode=output_mode,
+            drive_status="pending" if output_mode == "png_4000" else None,
+        )
         with SessionLocal.begin() as session:
             record = JobRecord(
                 id=job_id, user_id=x_user_id, filename=client_filename,
                 provider=settings.image_api_provider, status="queued",
-                total_images=len(images), output_mode=output_mode,
-                drive_status="pending" if output_mode == "png_4000" else None,
+                total_images=len(images),
             )
             session.add(record)
         if settings.task_queue.lower() == "celery":
