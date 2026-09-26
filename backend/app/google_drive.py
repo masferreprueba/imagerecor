@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .config import Settings
 
-DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
+# Limit the OAuth grant to files created or explicitly opened by this app.
+# The uploader only creates a ZIP-named folder and new PNG files; it does not
+# need permission to read or manage the rest of the user's Drive.
+DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 
 
 def folder_name_from_zip(filename: str) -> str:

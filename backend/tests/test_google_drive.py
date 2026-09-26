@@ -1,4 +1,8 @@
-from app.google_drive import folder_name_from_zip
+from app.google_drive import DRIVE_SCOPE, folder_name_from_zip
+
+
+def test_drive_scope_is_limited_to_app_files():
+    assert DRIVE_SCOPE == "https://www.googleapis.com/auth/drive.file"
 
 
 def test_folder_name_preserves_zip_name():
