@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from .config import Settings
 
 # Limit the OAuth grant to files created or explicitly opened by this app.
-# The uploader only creates a ZIP-named folder and new PNG/ZIP files; it does not
+# The uploader only creates a ZIP-named folder and new PNG files; it does not
 # need permission to read or manage the rest of the user's Drive.
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 
@@ -16,10 +16,6 @@ def folder_name_from_zip(filename: str) -> str:
     client_name = filename.replace("\\", "/").rsplit("/", 1)[-1]
     name = re.sub(r"\.zip$", "", client_name, flags=re.IGNORECASE).strip()
     return name[:200] or "Imagenes procesadas"
-
-
-def archive_name_from_zip(filename: str) -> str:
-    return f"{folder_name_from_zip(filename)} - PNG 4000x4000.zip"
 
 
 def _service_account_info(raw_value: str) -> dict:
@@ -35,7 +31,6 @@ def upload_png_folder(
     settings: "Settings",
     zip_filename: str,
     png_directory: Path,
-    png_archive: Path,
 ) -> str:
     from google.oauth2 import service_account
     from google.oauth2.credentials import Credentials
@@ -80,10 +75,4 @@ def upload_png_folder(
             fields="id",
             supportsAllDrives=True,
         ).execute()
-    drive.files().create(
-        body={"name": archive_name_from_zip(zip_filename), "parents": [folder_id]},
-        media_body=MediaFileUpload(str(png_archive), mimetype="application/zip", resumable=True),
-        fields="id",
-        supportsAllDrives=True,
-    ).execute()
     return folder.get("webViewLink") or f"https://drive.google.com/drive/folders/{folder_id}"
