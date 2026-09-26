@@ -52,6 +52,13 @@ def serialize(record: JobRecord) -> JobResponse:
         download_png_url=f"/api/jobs/{record.id}/download/png" if record.status == "completed" else None,
         download_jpeg_url=f"/api/jobs/{record.id}/download/jpeg" if record.status == "completed" and output_mode == "standard" else None,
         download_studio_url=f"/api/jobs/{record.id}/download/studio" if record.status == "completed" and output_mode == "standard" else None,
+        download_4000_url=(
+            f"/api/jobs/{record.id}/download/png-4000"
+            if record.status == "completed" and output_mode == "standard"
+            else f"/api/jobs/{record.id}/download/png"
+            if record.status == "completed"
+            else None
+        ),
         output_mode=output_mode, drive_status=metadata["drive_status"],
         drive_folder_url=metadata["drive_folder_url"], drive_error=metadata["drive_error"],
         previews=previews, created_at=record.created_at,
@@ -87,7 +94,7 @@ def create_job(
         update_job_metadata(
             root,
             output_mode=output_mode,
-            drive_status="pending" if output_mode == "png_4000" else None,
+            drive_status="pending",
         )
         with SessionLocal.begin() as session:
             record = JobRecord(
@@ -144,7 +151,7 @@ def download_job(job_id: str):
 
 @router.get("/{job_id}/download/{output_format}")
 def download_job_format(job_id: str, output_format: str):
-    if output_format not in {"png", "jpeg", "studio"}:
+    if output_format not in {"png", "jpeg", "studio", "png-4000"}:
         raise HTTPException(400, "Formato de descarga no permitido.")
     with SessionLocal() as session:
         record = session.get(JobRecord, job_id)
@@ -154,6 +161,8 @@ def download_job_format(job_id: str, output_format: str):
             path = Path(record.output_path)
         elif output_format == "jpeg":
             path = settings.storage_root / job_id / "imagenes_jpeg_fondo_blanco.zip"
+        elif output_format == "png-4000":
+            path = settings.storage_root / job_id / "imagenes_png_4000.zip"
         else:
             path = settings.storage_root / job_id / "imagenes_jpeg_calidad_estudio.zip"
         if not path.is_file(): raise HTTPException(410, "El archivo ya expiró.")

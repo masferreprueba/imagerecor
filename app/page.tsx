@@ -13,7 +13,7 @@ type Job = {
   processed_images: number; failed_images: number; progress: number; provider: string;
   error?: string | null; download_url?: string | null;
   download_png_url?: string | null; download_jpeg_url?: string | null;
-  download_studio_url?: string | null;
+  download_studio_url?: string | null; download_4000_url?: string | null;
   output_mode?: "standard" | "png_4000"; drive_status?: string | null;
   drive_folder_url?: string | null; drive_error?: string | null;
   previews?: Array<{ name: string; original_url: string; processed_url?: string | null; status: string }>;
@@ -40,7 +40,7 @@ async function waitForService() {
   }
   throw new Error(
     lastError
-      ? "El servicio gratuito está tardando en iniciar. Espera un minuto y vuelve a intentarlo."
+      ? "El servicio está tardando en responder. Espera un minuto y vuelve a intentarlo."
       : "No fue posible iniciar el servicio de procesamiento."
   );
 }
@@ -93,7 +93,7 @@ export default function Home() {
     }
   }, [stopPolling]);
 
-  const startProcessing = async (outputMode: "standard" | "png_4000") => {
+  const startProcessing = async () => {
     if (!file) return;
     if (!API_CONFIGURED) {
       const message = "El servidor de procesamiento todavía no está conectado a esta versión publicada.";
@@ -108,7 +108,7 @@ export default function Home() {
     }
     pollFailuresRef.current = 0;
     setState("waking");
-    const form = new FormData(); form.append("file", file); form.append("output_mode", outputMode);
+    const form = new FormData(); form.append("file", file); form.append("output_mode", "standard");
     try {
       await waitForService();
       setState("uploading");
@@ -162,7 +162,7 @@ export default function Home() {
           <div className="mb-8 max-w-3xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#e4f0eb] px-3 py-1.5 text-xs font-extrabold uppercase tracking-[.14em] text-[#1f5c48]"><span className="size-1.5 rounded-full bg-[#ef312d]" /> Flujo automatizado</div>
             <h1 className="text-balance text-4xl font-black leading-[1.05] tracking-[-.045em] sm:text-5xl lg:text-[3.6rem]">Productos limpios, listos para catálogo.</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-7 text-[#536360]">Carga un ZIP y recibe imágenes en PNG sin fondo y JPEG con fondo blanco.</p>
+            <p className="mt-5 max-w-2xl text-lg leading-7 text-[#536360]">Carga un ZIP y recibe PNG y JPEG de 500 × 500, además de PNG transparentes de 4000 × 4000 guardados automáticamente en Drive.</p>
             {!API_CONFIGURED && (
               <div className="mt-5 flex max-w-2xl items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" />
@@ -199,12 +199,12 @@ export default function Home() {
                     <div className="min-w-0 flex-1"><p className="truncate font-extrabold">{file.name}</p><p className="mt-1 text-sm text-[#71807d]">{formatBytes(file.size)} · Listo para procesar</p></div>
                     {!busy && state !== "completed" && <Button variant="ghost" size="icon" onClick={reset} aria-label="Quitar archivo"><X /></Button>}
                   </div>
-                  {state === "ready" && <><div className="mt-5 flex items-start gap-3 rounded-xl border border-[#bdd7cc] bg-[#f1f8f5] p-4"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#1f5c48] text-white"><Sparkles className="size-4" /></div><div><p className="text-sm font-extrabold">Elige la salida</p><p className="mt-1 text-sm leading-5 text-[#60716d]">Genera el paquete habitual de 500 × 500 o PNG transparentes de 4000 × 4000 que también se guardarán en Drive.</p></div></div><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="outline" size="lg" onClick={reset}>Cancelar</Button><Button size="lg" onClick={() => startProcessing("standard")} className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]">Procesar 500 × 500 <ArrowRight /></Button><Button size="lg" onClick={() => startProcessing("png_4000")} className="bg-[#1f5c48] font-bold text-white hover:bg-[#174837]">PNG 4000 × 4000 <ArrowRight /></Button></div></>}
+                  {state === "ready" && <><div className="mt-5 flex items-start gap-3 rounded-xl border border-[#bdd7cc] bg-[#f1f8f5] p-4"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#1f5c48] text-white"><Sparkles className="size-4" /></div><div><p className="text-sm font-extrabold">Proceso automático</p><p className="mt-1 text-sm leading-5 text-[#60716d]">Generamos las salidas de 500 × 500 y 4000 × 4000 en el mismo trabajo. Los PNG de 4000 × 4000 se envían a Drive.</p></div></div><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="outline" size="lg" onClick={reset}>Cancelar</Button><Button size="lg" onClick={startProcessing} className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]">Procesar imágenes <ArrowRight /></Button></div></>}
                   {(busy || state === "completed" || state === "failed") && (
                     <div className="mt-7">
-                      <div className="mb-3 flex items-end justify-between gap-4"><div><p className="font-extrabold">{state === "completed" ? "Procesamiento terminado" : state === "failed" ? "Revisa el proceso" : "Procesando imágenes"}</p><p className="mt-1 text-sm text-[#71807d]">{state === "waking" ? "Conectando con el servicio gratuito…" : state === "uploading" ? "Subiendo ZIP…" : state === "queued" ? "Trabajo en cola…" : job ? `${job.processed_images} de ${job.total_images} imágenes` : "Preparando archivos…"}</p></div><span className="text-2xl font-black tabular-nums">{Math.round(progress)}%</span></div>
+                      <div className="mb-3 flex items-end justify-between gap-4"><div><p className="font-extrabold">{state === "completed" ? "Procesamiento terminado" : state === "failed" ? "Revisa el proceso" : "Procesando imágenes"}</p><p className="mt-1 text-sm text-[#71807d]">{state === "waking" ? "Conectando con el servicio…" : state === "uploading" ? "Subiendo ZIP…" : state === "queued" ? "Trabajo en cola…" : job ? `${job.processed_images} de ${job.total_images} imágenes` : "Preparando archivos…"}</p></div><span className="text-2xl font-black tabular-nums">{Math.round(progress)}%</span></div>
                       <Progress value={progress} className="h-3 bg-[#e4ebe8] [&_[data-slot=progress-indicator]]:bg-[#ef312d]" />
-                      {state === "completed" && job && <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-[#102321] p-5 text-white"><div className="flex items-center gap-4"><div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#47b881] text-[#102321]"><Check className="size-5 stroke-[3]" /></div><div className="flex-1"><p className="font-extrabold">{job.processed_images} archivos listos</p><p className="mt-1 text-sm text-white/65">{job.output_mode === "png_4000" ? "PNG transparentes de 4000 × 4000 listos." : "Descarga PNG transparente o JPEG con fondo blanco."}</p></div></div><div className="grid gap-3 sm:grid-cols-2"><Button asChild size="lg" className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]"><a href={`${API_URL}${job.download_png_url || job.download_url}`}><Download /> {job.output_mode === "png_4000" ? "ZIP · PNG 4000 × 4000" : "ZIP · PNG sin fondo"}</a></Button>{job.download_jpeg_url && <Button asChild size="lg" variant="outline" className="border-white/25 bg-white font-bold text-[#102321] hover:bg-white/90"><a href={`${API_URL}${job.download_jpeg_url}`}><Download /> ZIP · JPEG fondo blanco</a></Button>}{job.drive_folder_url && <Button asChild size="lg" className="bg-[#4285f4] font-bold text-white hover:bg-[#3475df]"><a href={job.drive_folder_url} target="_blank" rel="noopener noreferrer"><ExternalLink /> Abrir carpeta en Drive</a></Button>}</div>{job.output_mode === "png_4000" && job.drive_status === "failed" && <p className="text-sm text-amber-200">Las imágenes se generaron, pero Drive no pudo guardarlas: {job.drive_error}</p>}</div>}
+                      {state === "completed" && job && <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-[#102321] p-5 text-white"><div className="flex items-center gap-4"><div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#47b881] text-[#102321]"><Check className="size-5 stroke-[3]" /></div><div className="flex-1"><p className="font-extrabold">{job.processed_images} archivos listos</p><p className="mt-1 text-sm text-white/65">Se generaron PNG y JPEG de 500 × 500, además de PNG transparentes de 4000 × 4000.</p></div></div><div className="grid gap-3 sm:grid-cols-2"><Button asChild size="lg" className="bg-[#ef312d] font-bold text-white hover:bg-[#d92522]"><a href={`${API_URL}${job.download_png_url || job.download_url}`}><Download /> ZIP · PNG 500 × 500</a></Button>{job.download_jpeg_url && <Button asChild size="lg" variant="outline" className="border-white/25 bg-white font-bold text-[#102321] hover:bg-white/90"><a href={`${API_URL}${job.download_jpeg_url}`}><Download /> ZIP · JPEG 500 × 500</a></Button>}{job.download_4000_url && <Button asChild size="lg" className="bg-[#1f5c48] font-bold text-white hover:bg-[#174837]"><a href={`${API_URL}${job.download_4000_url}`}><Download /> ZIP · PNG 4000 × 4000</a></Button>}{job.drive_folder_url && <Button asChild size="lg" className="bg-[#4285f4] font-bold text-white hover:bg-[#3475df]"><a href={job.drive_folder_url} target="_blank" rel="noopener noreferrer"><ExternalLink /> Abrir carpeta en Drive</a></Button>}</div>{job.drive_status === "completed" && <p className="text-sm text-emerald-200">Los PNG 4000 × 4000 se guardaron automáticamente en Drive.</p>}{job.drive_status === "failed" && <p className="text-sm text-amber-200">Los archivos están listos, pero Drive no pudo guardarlos: {job.drive_error}</p>}{job.drive_status === "disabled" && <p className="text-sm text-amber-200">Los archivos están listos para descargar; la conexión de Drive aún no está habilitada en Render.</p>}</div>}
                       {state === "failed" && <div className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><p className="text-sm font-semibold">{job?.error || "No fue posible conectar con el servicio."}</p><Button variant="outline" size="sm" onClick={reset}><RefreshCw /> Volver</Button></div>}
                     </div>
                   )}
@@ -217,8 +217,8 @@ export default function Home() {
         </div>
 
         <aside className="space-y-5 lg:pt-[172px]">
-          <div className="rounded-[24px] bg-[#102321] p-6 text-white shadow-[0_20px_55px_rgba(16,35,33,.18)]"><div className="mb-6 flex items-center justify-between"><p className="font-black">Resultados incluidos</p><Sparkles className="size-5 text-[#ef312d]" /></div><div className="grid grid-cols-2 gap-3"><Stat value="500" label="PNG y JPEG" suffix="× 500" /><Stat value="+25%" label="escala centrada" /></div></div>
-          <div className="rounded-[24px] border border-black/8 bg-white p-6"><p className="mb-5 font-black">Así funciona</p><ol className="space-y-5"><Step number="01" icon={<FileArchive />} title="Extraemos" text="Validamos el ZIP y localizamos todas las imágenes compatibles." /><Step number="02" icon={<Sparkles />} title="Recortamos" text="La IA elimina el fondo y conserva los bordes del producto." /><Step number="03" icon={<ImageIcon />} title="Normalizamos" text="Centramos cada pieza y generamos el ZIP final." /></ol></div>
+          <div className="rounded-[24px] bg-[#102321] p-6 text-white shadow-[0_20px_55px_rgba(16,35,33,.18)]"><div className="mb-6 flex items-center justify-between"><p className="font-black">Resultados incluidos</p><Sparkles className="size-5 text-[#ef312d]" /></div><div className="grid grid-cols-2 gap-3"><Stat value="500" label="PNG y JPEG" suffix="× 500" /><Stat value="4000" label="PNG + Drive" suffix="× 4000" /></div></div>
+          <div className="rounded-[24px] border border-black/8 bg-white p-6"><p className="mb-5 font-black">Así funciona</p><ol className="space-y-5"><Step number="01" icon={<FileArchive />} title="Extraemos" text="Validamos el ZIP y localizamos todas las imágenes compatibles." /><Step number="02" icon={<Sparkles />} title="Recortamos" text="La IA elimina el fondo y conserva los bordes del producto." /><Step number="03" icon={<ImageIcon />} title="Normalizamos" text="Centramos cada pieza, generamos ambos tamaños y enviamos los PNG 4000 a Drive." /></ol></div>
           <div className="flex items-center gap-3 px-2 text-sm text-[#657572]"><LoaderCircle className="size-4" /><span>Servicio: <b className="capitalize">{API_CONFIGURED ? (job?.provider || "conectado") : "pendiente de conexión"}</b></span></div>
         </aside>
       </section>

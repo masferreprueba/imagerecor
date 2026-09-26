@@ -15,7 +15,7 @@ from ..google_drive import upload_png_folder
 
 def _process_one(
     source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path,
-    studio_outputs: Path, provider, output_mode: str,
+    studio_outputs: Path, highres_outputs: Path, provider, output_mode: str,
 ) -> tuple[str, bool, str | None]:
     try:
         cutout = cutouts / f"{source.stem}.png"
@@ -33,6 +33,12 @@ def _process_one(
         )
         if not high_resolution:
             create_studio_product(cutout, studio_outputs / f"{source.stem}_estudio.jpg")
+            normalize_product(
+                cutout,
+                highres_outputs / f"{source.stem}.png",
+                4000,
+                settings.object_margin_percent,
+            )
         return source.name, True, None
     except Exception as exc:
         return source.name, False, str(exc)
@@ -46,6 +52,7 @@ def process_job(job_id: str) -> None:
     png_outputs = root / "outputs"
     jpeg_outputs = root / "outputs_jpeg"
     studio_outputs = root / "outputs_studio"
+    highres_outputs = root / "outputs_4000"
     try:
         from ..database import JobRecord, SessionLocal
         with SessionLocal() as session:
@@ -59,6 +66,7 @@ def process_job(job_id: str) -> None:
         png_outputs.mkdir(parents=True, exist_ok=True)
         jpeg_outputs.mkdir(parents=True, exist_ok=True)
         studio_outputs.mkdir(parents=True, exist_ok=True)
+        highres_outputs.mkdir(parents=True, exist_ok=True)
         credentials = active_provider_keys()
         provider = create_mixed_provider_chain(
             credentials,
@@ -69,7 +77,7 @@ def process_job(job_id: str) -> None:
         processed = failed = 0
         failures: list[dict[str, str]] = []
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
-            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, provider, output_mode) for image in images]
+            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, highres_outputs, provider, output_mode) for image in images]
             for future in as_completed(futures):
                 name, ok, error = future.result()
                 if ok: processed += 1
@@ -85,20 +93,22 @@ def process_job(job_id: str) -> None:
             if output_mode == "standard":
                 (jpeg_outputs / "errores.json").write_text(error_report, encoding="utf-8")
                 (studio_outputs / "errores.json").write_text(error_report, encoding="utf-8")
+                (highres_outputs / "errores.json").write_text(error_report, encoding="utf-8")
         update_job(job_id, status="packaging")
         png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
         if output_mode == "standard":
             shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
             shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)
+            shutil.make_archive(str(root / "imagenes_png_4000"), "zip", highres_outputs)
+        drive_outputs = png_outputs if output_mode == "png_4000" else highres_outputs
+        if settings.google_drive_enabled:
+            try:
+                drive_url = upload_png_folder(settings, zip_filename, drive_outputs)
+                update_job_metadata(root, drive_status="completed", drive_folder_url=drive_url, drive_error=None)
+            except Exception as drive_exc:
+                update_job_metadata(root, drive_status="failed", drive_error=str(drive_exc)[:2000])
         else:
-            if settings.google_drive_enabled:
-                try:
-                    drive_url = upload_png_folder(settings, zip_filename, png_outputs)
-                    update_job_metadata(root, drive_status="completed", drive_folder_url=drive_url, drive_error=None)
-                except Exception as drive_exc:
-                    update_job_metadata(root, drive_status="failed", drive_error=str(drive_exc)[:2000])
-            else:
-                update_job_metadata(root, drive_status="disabled", drive_error="Google Drive no está habilitado en Render.")
+            update_job_metadata(root, drive_status="disabled", drive_error="Google Drive no está habilitado en Render.")
         update_job(job_id, status="completed", output_path=str(png_archive))
         shutil.rmtree(cutouts, ignore_errors=True)
     except Exception as exc:

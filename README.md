@@ -1,6 +1,6 @@
 # Mas Ferre — Procesador automático de imágenes
 
-Aplicación web completa para recibir un ZIP de fotografías de producto, eliminar sus fondos mediante IA, normalizar cada resultado a **500 × 500 px con transparencia** y entregar un nuevo ZIP.
+Aplicación web completa para recibir un ZIP de fotografías de producto, eliminar sus fondos mediante IA y generar automáticamente salidas de **500 × 500 px** y **4000 × 4000 px**. Los PNG de 4000 × 4000 también se guardan en Google Drive.
 
 ## Qué incluye
 
@@ -8,7 +8,7 @@ Aplicación web completa para recibir un ZIP de fotografías de producto, elimin
 - API en FastAPI con validación segura de ZIP, límites de carga y protección frente a *ZIP Slip* y bombas de compresión.
 - Proveedores externos intercambiables: PhotoRoom, Remove.bg, Poof.bg y Claid.
 - Recorte por canal alfa, escala proporcional, centrado y margen uniforme con Pillow.
-- Salida independiente en PNG transparente de 4000 × 4000 px con guardado automático en Google Drive.
+- En cada ZIP, salida adicional en PNG transparente de 4000 × 4000 px con guardado automático en Google Drive.
 - Acabado de estudio gratuito en JPEG 1500 × 1500, con fondo neutro, sombra natural y ajustes conservadores de luz, color y nitidez.
 - Procesamiento concurrente y cola distribuida Celery + Redis para producción.
 - PostgreSQL opcional para historial y SQLite como modo sencillo de desarrollo.
@@ -84,9 +84,10 @@ uvicorn app.main:app --reload --app-dir backend
 
 ## API
 
-- `POST /api/jobs`: recibe `multipart/form-data` con `file` y `output_mode` (`standard` o `png_4000`).
+- `POST /api/jobs`: recibe `multipart/form-data` con `file`; el modo estándar genera automáticamente ambos tamaños. `output_mode=png_4000` se conserva por compatibilidad.
 - `GET /api/jobs/{id}`: devuelve estado, progreso, conteos y vistas previas.
 - `GET /api/jobs/{id}/download`: descarga el ZIP terminado.
+- `GET /api/jobs/{id}/download/png-4000`: descarga el ZIP de PNG transparentes de 4000 × 4000.
 - `GET /api/jobs/{id}/download/studio`: descarga el ZIP de fotografías con acabado de estudio.
 - `GET /health`: verificación de disponibilidad.
 

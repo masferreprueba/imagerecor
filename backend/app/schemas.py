@@ -23,6 +23,7 @@ class JobResponse(BaseModel):
     download_png_url: str | None
     download_jpeg_url: str | None
     download_studio_url: str | None
+    download_4000_url: str | None
     output_mode: str
     drive_status: str | None
     drive_folder_url: str | None

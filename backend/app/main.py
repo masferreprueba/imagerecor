@@ -55,4 +55,21 @@ app.include_router(api_keys_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "provider": settings.image_api_provider}
+    drive_credentials_configured = bool(
+        settings.google_drive_service_account_json
+        or (
+            settings.google_drive_oauth_client_id
+            and settings.google_drive_oauth_client_secret
+            and settings.google_drive_oauth_refresh_token
+        )
+    )
+    return {
+        "status": "ok",
+        "provider": settings.image_api_provider,
+        "drive_enabled": settings.google_drive_enabled,
+        "drive_configured": bool(
+            settings.google_drive_enabled
+            and settings.google_drive_folder_id
+            and drive_credentials_configured
+        ),
+    }
