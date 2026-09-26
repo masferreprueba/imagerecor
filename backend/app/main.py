@@ -2,7 +2,7 @@ import shutil
 import threading
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api.auth import router as auth_router
 from .api.jobs import router as jobs_router
@@ -10,6 +10,8 @@ from .api.api_keys import router as api_keys_router
 from .api_credentials import sync_environment_api_keys
 from .config import get_settings
 from .database import init_db
+from .auth import require_auth
+from .google_drive import get_storage_quota
 
 settings = get_settings()
 cleanup_stop = threading.Event()
@@ -51,6 +53,14 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(jobs_router)
 app.include_router(api_keys_router)
+
+
+@app.get("/api/drive/storage")
+def drive_storage(_: str = Depends(require_auth)):
+    try:
+        return get_storage_quota(settings)
+    except Exception as exc:
+        raise HTTPException(502, f"No fue posible consultar el almacenamiento de Drive: {exc}")
 
 
 @app.get("/health")
