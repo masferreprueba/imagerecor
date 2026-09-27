@@ -22,7 +22,8 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "Mas Ferre · Estudio de imágenes";
+        Text = "IMA · Tus productos, listos para vender";
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(900, 650);
         Size = new Size(1280, 850);
@@ -41,7 +42,7 @@ internal sealed class MainForm : Form
         homeButton.Click += (_, _) => NavigateHome();
         reloadButton.Click += (_, _) => browser.Reload();
         browserButton.Click += (_, _) => OpenInDefaultBrowser();
-        toolbar.Items.Add(new ToolStripLabel("MAS FERRE") { Font = new Font("Segoe UI", 10, FontStyle.Bold) });
+        toolbar.Items.Add(new ToolStripLabel("IMA") { Font = new Font("Segoe UI", 10, FontStyle.Bold) });
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(homeButton);
         toolbar.Items.Add(reloadButton);
@@ -62,8 +63,7 @@ internal sealed class MainForm : Form
         {
             var dataFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "MasFerre",
-                "ImageStudio");
+                "IMA");
             Directory.CreateDirectory(dataFolder);
             var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: dataFolder);
             await browser.EnsureCoreWebView2Async(environment);
@@ -84,7 +84,7 @@ internal sealed class MainForm : Form
             status.Text = "No se pudo iniciar la ventana integrada";
             var answer = MessageBox.Show(
                 $"No fue posible iniciar Microsoft Edge WebView2.\n\n{error.Message}\n\n¿Deseas abrir la herramienta en tu navegador?",
-                "Mas Ferre · Estudio de imágenes",
+                "IMA",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
             if (answer == DialogResult.Yes)
