@@ -23,6 +23,12 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Preparar icono de IMA
+        shell: pwsh
+        run: |
+          $icon = Get-Content desktop/ima-icon.b64 -Raw
+          [IO.File]::WriteAllBytes("desktop/ima-icon.ico", [Convert]::FromBase64String($icon))
+
       - name: Compilar aplicación de Windows
         shell: pwsh
         run: |
@@ -35,18 +41,18 @@ jobs:
       - name: Verificar ejecutable
         shell: pwsh
         run: |
-          $exe = Get-ChildItem desktop/publish -Filter "MasFerre-Estudio-de-Imagenes.exe" | Select-Object -First 1
+          $exe = Get-ChildItem desktop/publish -Filter "IMA.exe" | Select-Object -First 1
           if (-not $exe) { throw "No se generó el archivo EXE" }
           Write-Host "Ejecutable generado: $($exe.FullName)"
 
       - name: Crear paquete descargable
         shell: pwsh
-        run: Compress-Archive -Path desktop/publish/* -DestinationPath MasFerre-Estudio-de-Imagenes-Windows.zip
+        run: Compress-Archive -Path desktop/publish/* -DestinationPath IMA-Windows.zip
 
       - name: Publicar instalador
         uses: actions/upload-artifact@v4
         with:
-          name: MasFerre-Estudio-de-Imagenes-Windows
-          path: MasFerre-Estudio-de-Imagenes-Windows.zip
+          name: IMA-Windows
+          path: IMA-Windows.zip
           if-no-files-found: error
           retention-days: 30
