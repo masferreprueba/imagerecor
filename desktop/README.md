@@ -1,4 +1,4 @@
-# Mas Ferre · aplicación para Windows
+# IMA · aplicación para Windows
 
 Este proyecto genera una aplicación de escritorio para Windows de 64 bits. La ventana carga la versión pública de la herramienta, por lo que las mejoras publicadas en Render aparecen automáticamente sin reinstalar el programa.
 
