@@ -36,8 +36,12 @@ def normalize_product(
         if jpeg_destination:
             jpeg_destination.parent.mkdir(parents=True, exist_ok=True)
             white = Image.new("RGB", (size, size), "white")
-            white.paste(canvas, mask=canvas.getchannel("A"))
+            canvas_alpha = canvas.getchannel("A")
+            white.paste(canvas, mask=canvas_alpha)
+            canvas_alpha.close()
             white.save(jpeg_destination, "JPEG", quality=95, optimize=True, progressive=True)
+            white.close()
+        canvas.close()
 
 
 def create_studio_product(
@@ -69,7 +73,9 @@ def create_studio_product(
         max(1, round(product.width * ratio)),
         max(1, round(product.height * ratio)),
     )
-    product = product.resize(dimensions, Image.Resampling.LANCZOS)
+    original_product = product
+    product = original_product.resize(dimensions, Image.Resampling.LANCZOS)
+    original_product.close()
 
     product_alpha = product.getchannel("A")
     rgb = product.convert("RGB")
@@ -107,7 +113,8 @@ def create_studio_product(
     composed.alpha_composite(enhanced, (x, y))
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    composed.convert("RGB").save(
+    jpeg_image = composed.convert("RGB")
+    jpeg_image.save(
         destination,
         "JPEG",
         quality=95,
@@ -115,6 +122,7 @@ def create_studio_product(
         progressive=True,
         subsampling=0,
     )
+    jpeg_image.close()
 
     product.close()
     product_alpha.close()
