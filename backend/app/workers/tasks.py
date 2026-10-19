@@ -8,7 +8,7 @@ from .celery_app import celery_app
 from ..config import get_settings
 from ..database import update_job
 from ..api_credentials import active_provider_keys, record_api_attempt
-from ..image_processing import create_studio_product, normalize_product
+from ..image_processing import normalize_product
 from ..job_metadata import read_job_metadata, update_job_metadata
 from ..security import safe_extract_images
 from ..services import create_mixed_provider_chain
@@ -41,7 +41,6 @@ def _process_one(
                 jpeg_destination=jpeg_output,
             )
             if not high_resolution:
-                create_studio_product(cutout, studio_outputs / f"{source.stem}_estudio.jpg")
                 normalize_product(
                     cutout,
                     highres_outputs / f"{source.stem}.png",
@@ -102,13 +101,11 @@ def process_job(job_id: str) -> None:
             (png_outputs / "errores.json").write_text(error_report, encoding="utf-8")
             if output_mode == "standard":
                 (jpeg_outputs / "errores.json").write_text(error_report, encoding="utf-8")
-                (studio_outputs / "errores.json").write_text(error_report, encoding="utf-8")
                 (highres_outputs / "errores.json").write_text(error_report, encoding="utf-8")
         update_job(job_id, status="packaging")
         png_archive = Path(shutil.make_archive(str(root / "imagenes_png_sin_fondo"), "zip", png_outputs))
         if output_mode == "standard":
             shutil.make_archive(str(root / "imagenes_jpeg_fondo_blanco"), "zip", jpeg_outputs)
-            shutil.make_archive(str(root / "imagenes_jpeg_calidad_estudio"), "zip", studio_outputs)
             shutil.make_archive(str(root / "imagenes_png_4000"), "zip", highres_outputs)
         drive_outputs = png_outputs if output_mode == "png_4000" else highres_outputs
         if settings.google_drive_enabled:
