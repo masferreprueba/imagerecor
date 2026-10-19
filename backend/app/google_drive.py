@@ -1,5 +1,6 @@
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -86,11 +87,21 @@ def upload_png_folder(
         supportsAllDrives=True,
     ).execute()
     folder_id = folder["id"]
-    for image in sorted(png_directory.glob("*.png")):
-        drive.files().create(
+    images = sorted(png_directory.glob("*.png"))
+
+    def upload_one(image: Path) -> None:
+        # googleapiclient service objects are not thread-safe, so each upload
+        # receives its own client while sharing only the destination folder.
+        upload_drive = build(
+            "drive", "v3", credentials=_drive_credentials(settings), cache_discovery=False
+        )
+        upload_drive.files().create(
             body={"name": image.name, "parents": [folder_id]},
             media_body=MediaFileUpload(str(image), mimetype="image/png", resumable=True),
             fields="id",
             supportsAllDrives=True,
         ).execute()
+
+    with ThreadPoolExecutor(max_workers=min(3, max(1, len(images)))) as pool:
+        list(pool.map(upload_one, images))
     return folder.get("webViewLink") or f"https://drive.google.com/drive/folders/{folder_id}"
