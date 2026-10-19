@@ -32,7 +32,7 @@ def normalize_product(
         canvas.alpha_composite(product, position)
         product.close()
         destination.parent.mkdir(parents=True, exist_ok=True)
-        canvas.save(destination, "PNG", optimize=True, compress_level=9)
+        canvas.save(destination, "PNG", optimize=False, compress_level=4)
         if jpeg_destination:
             jpeg_destination.parent.mkdir(parents=True, exist_ok=True)
             white = Image.new("RGB", (size, size), "white")
