@@ -3,6 +3,7 @@ import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Lock
 from .celery_app import celery_app
 from ..config import get_settings
 from ..database import update_job
@@ -20,29 +21,33 @@ logger = logging.getLogger(__name__)
 def _process_one(
     source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path,
     studio_outputs: Path, highres_outputs: Path, provider, output_mode: str,
+    transform_lock: Lock,
 ) -> tuple[str, bool, str | None]:
     try:
         cutout = cutouts / f"{source.stem}.png"
         png_output = png_outputs / f"{source.stem}.png"
         provider.remove_background(source, cutout)
-        settings = get_settings()
-        high_resolution = output_mode == "png_4000"
-        jpeg_output = None if high_resolution else jpeg_outputs / f"{source.stem}.jpg"
-        normalize_product(
-            cutout,
-            png_output,
-            4000 if high_resolution else settings.output_size,
-            settings.object_margin_percent,
-            jpeg_destination=jpeg_output,
-        )
-        if not high_resolution:
-            create_studio_product(cutout, studio_outputs / f"{source.stem}_estudio.jpg")
+        # Background removal is network-bound and may run concurrently. The local
+        # 4000x4000 transforms are serialized to avoid exceeding Render memory.
+        with transform_lock:
+            settings = get_settings()
+            high_resolution = output_mode == "png_4000"
+            jpeg_output = None if high_resolution else jpeg_outputs / f"{source.stem}.jpg"
             normalize_product(
                 cutout,
-                highres_outputs / f"{source.stem}.png",
-                4000,
+                png_output,
+                4000 if high_resolution else settings.output_size,
                 settings.object_margin_percent,
+                jpeg_destination=jpeg_output,
             )
+            if not high_resolution:
+                create_studio_product(cutout, studio_outputs / f"{source.stem}_estudio.jpg")
+                normalize_product(
+                    cutout,
+                    highres_outputs / f"{source.stem}.png",
+                    4000,
+                    settings.object_margin_percent,
+                )
         return source.name, True, None
     except Exception as exc:
         return source.name, False, str(exc)
@@ -80,8 +85,9 @@ def process_job(job_id: str) -> None:
         )
         processed = failed = 0
         failures: list[dict[str, str]] = []
+        transform_lock = Lock()
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
-            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, highres_outputs, provider, output_mode) for image in images]
+            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, highres_outputs, provider, output_mode, transform_lock) for image in images]
             for future in as_completed(futures):
                 name, ok, error = future.result()
                 if ok: processed += 1
