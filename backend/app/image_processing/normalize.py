@@ -12,24 +12,34 @@ def normalize_product(
     jpeg_destination: Path | None = None,
 ) -> None:
     with Image.open(source) as opened:
-        image = opened.convert("RGBA")
-        alpha = image.getchannel("A")
+        if "A" not in opened.getbands():
+            raise ValueError("La imagen procesada no contiene transparencia.")
+        alpha = opened.getchannel("A")
         bbox = alpha.getbbox()
+        alpha.close()
         if not bbox:
             raise ValueError("La imagen procesada no contiene un objeto visible.")
-        product = image.crop(bbox)
-        alpha.close()
-        image.close()
+        # Crop before converting. Converting the complete source to RGBA used to
+        # keep an unnecessary full-size copy in memory during 4000x4000 output.
+        product = opened.crop(bbox)
+        if product.mode != "RGBA":
+            converted = product.convert("RGBA")
+            product.close()
+            product = converted
         max_side = max(1, round(size * (1 - 2 * margin_percent / 100)))
         # Grow uniformly from the center while preserving the 500 × 500 canvas.
         ratio = min(max_side / product.width, max_side / product.height) * VISUAL_SCALE
         dimensions = (max(1, round(product.width * ratio)), max(1, round(product.height * ratio)))
-        resized = product.resize(dimensions, Image.Resampling.LANCZOS)
+        resized = product.resize(
+            dimensions,
+            Image.Resampling.LANCZOS,
+            reducing_gap=3.0,
+        )
         product.close()
         product = resized
         canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         position = ((size - product.width) // 2, (size - product.height) // 2)
-        canvas.alpha_composite(product, position)
+        canvas.paste(product, position, product)
         product.close()
         destination.parent.mkdir(parents=True, exist_ok=True)
         canvas.save(destination, "PNG", optimize=False, compress_level=4)
