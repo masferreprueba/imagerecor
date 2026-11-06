@@ -1,9 +1,10 @@
+import ctypes
+import gc
 import json
 import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from threading import Lock
 from .celery_app import celery_app
 from ..config import get_settings
 from ..database import update_job
@@ -18,38 +19,53 @@ from ..google_drive import upload_png_folder
 logger = logging.getLogger(__name__)
 
 
-def _process_one(
-    source: Path, cutouts: Path, png_outputs: Path, jpeg_outputs: Path,
-    studio_outputs: Path, highres_outputs: Path, provider, output_mode: str,
-    transform_lock: Lock,
-) -> tuple[str, bool, str | None]:
+def _release_image_memory() -> None:
+    """Return Pillow/native buffers to the OS between large images."""
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (AttributeError, OSError):
+        pass
+
+
+def _remove_background_one(
+    source: Path, cutouts: Path, provider,
+) -> tuple[Path, Path | None, str | None]:
     try:
         cutout = cutouts / f"{source.stem}.png"
-        png_output = png_outputs / f"{source.stem}.png"
         provider.remove_background(source, cutout)
-        # Background removal is network-bound and may run concurrently. The local
-        # 4000x4000 transforms are serialized to avoid exceeding Render memory.
-        with transform_lock:
-            settings = get_settings()
-            high_resolution = output_mode == "png_4000"
-            jpeg_output = None if high_resolution else jpeg_outputs / f"{source.stem}.jpg"
+        return source, cutout, None
+    except Exception as exc:
+        return source, None, str(exc)
+
+
+def _create_outputs(
+    source: Path, cutout: Path, png_outputs: Path, jpeg_outputs: Path,
+    highres_outputs: Path, output_mode: str,
+) -> tuple[str, bool, str | None]:
+    try:
+        settings = get_settings()
+        high_resolution = output_mode == "png_4000"
+        jpeg_output = None if high_resolution else jpeg_outputs / f"{source.stem}.jpg"
+        normalize_product(
+            cutout,
+            png_outputs / f"{source.stem}.png",
+            4000 if high_resolution else settings.output_size,
+            settings.object_margin_percent,
+            jpeg_destination=jpeg_output,
+        )
+        if not high_resolution:
             normalize_product(
                 cutout,
-                png_output,
-                4000 if high_resolution else settings.output_size,
+                highres_outputs / f"{source.stem}.png",
+                4000,
                 settings.object_margin_percent,
-                jpeg_destination=jpeg_output,
             )
-            if not high_resolution:
-                normalize_product(
-                    cutout,
-                    highres_outputs / f"{source.stem}.png",
-                    4000,
-                    settings.object_margin_percent,
-                )
         return source.name, True, None
     except Exception as exc:
         return source.name, False, str(exc)
+    finally:
+        _release_image_memory()
 
 
 def process_job(job_id: str) -> None:
@@ -84,15 +100,40 @@ def process_job(job_id: str) -> None:
         )
         processed = failed = 0
         failures: list[dict[str, str]] = []
-        transform_lock = Lock()
+        ready_for_transform: list[tuple[Path, Path]] = []
+
+        # Keep the requested three concurrent API calls, but finish that network
+        # stage before allocating any 4000x4000 Pillow canvases. Overlapping both
+        # stages caused Render's 512 MB instance to be killed on larger ZIPs.
         with ThreadPoolExecutor(max_workers=settings.processing_concurrency) as pool:
-            futures = [pool.submit(_process_one, image, cutouts, png_outputs, jpeg_outputs, studio_outputs, highres_outputs, provider, output_mode, transform_lock) for image in images]
+            futures = [
+                pool.submit(_remove_background_one, image, cutouts, provider)
+                for image in images
+            ]
             for future in as_completed(futures):
-                name, ok, error = future.result()
-                if ok: processed += 1
+                source, cutout, error = future.result()
+                if cutout is not None:
+                    ready_for_transform.append((source, cutout))
                 else:
-                    failed += 1; failures.append({"file": name, "error": error or "Error desconocido"})
-                update_job(job_id, processed_images=processed, failed_images=failed)
+                    failed += 1
+                    failures.append({"file": source.name, "error": error or "Error desconocido"})
+                    update_job(job_id, processed_images=processed, failed_images=failed)
+
+        _release_image_memory()
+
+        # Large local transforms are intentionally sequential. This preserves API
+        # concurrency while keeping peak memory stable for ZIPs with many photos.
+        for source, cutout in ready_for_transform:
+            name, ok, error = _create_outputs(
+                source, cutout, png_outputs, jpeg_outputs,
+                highres_outputs, output_mode,
+            )
+            if ok:
+                processed += 1
+            else:
+                failed += 1
+                failures.append({"file": name, "error": error or "Error desconocido"})
+            update_job(job_id, processed_images=processed, failed_images=failed)
         if processed == 0:
             detail = failures[0]["error"] if failures else "Error desconocido."
             raise RuntimeError(f"Ninguna imagen pudo procesarse. {detail}")
